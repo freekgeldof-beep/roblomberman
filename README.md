@@ -24,6 +24,10 @@ Vuur laat andere bommen meteen ontploffen (kettingreacties).
 
 ## Installeren
 
+### Snelste manier
+
+Download `Roblomberman.rbxlx` uit deze repo en open het in Roblox Studio. Druk op Play en je speelt. (Opnieuw genereren na een codewijziging: `python3 build_place.py`.)
+
 ### Met Rojo
 
 ```bash
