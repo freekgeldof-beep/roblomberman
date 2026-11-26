@@ -1,8 +1,8 @@
 <roblox version="4">
-<Item class="Workspace" referent="RBX1"><Properties><string name="Name">Workspace</string></Properties></Item>
-<Item class="Lighting" referent="RBX2"><Properties><string name="Name">Lighting</string></Properties></Item>
-<Item class="Players" referent="RBX3"><Properties><string name="Name">Players</string></Properties></Item>
-<Item class="ReplicatedStorage" referent="RBX5"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="ModuleScript" referent="RBX4"><Properties>
+<Item class="Workspace" referent="RBX8"><Properties><string name="Name">Workspace</string></Properties></Item>
+<Item class="Lighting" referent="RBX9"><Properties><string name="Name">Lighting</string></Properties></Item>
+<Item class="Players" referent="RBX10"><Properties><string name="Name">Players</string></Properties></Item>
+<Item class="ReplicatedStorage" referent="RBX12"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="ModuleScript" referent="RBX11"><Properties>
 <string name="Name">BombConfig</string>
 <ProtectedString name="Source"><![CDATA[-- Gedeelde instellingen (server + client)
 return {
@@ -17,6 +17,7 @@ return {
 	FLAME_TIME = 0.6, -- hoe lang het vuur blijft
 	THROW_DISTANCE = 3, -- minimale gooi-afstand in vakjes
 	THROW_SPEED = 30, -- studs per seconde
+	KICK_SPEED = 9, -- vakjes per seconde voor een geschopte bom
 
 	START_BOMBS = 1,
 	START_RANGE = 2,
@@ -26,209 +27,384 @@ return {
 	MAX_SPEED = 26,
 	SPEED_STEP = 2,
 
-	INTERMISSION = 6, -- seconden tussen rondes
+	CURSE_TIME = 10, -- seconden dat een 💀-vloek duurt
+	CURSE_SLOW_SPEED = 8, -- loopsnelheid met de "traag"-vloek
+
+	ROUND_TIME = 150, -- seconden tot sudden death begint
+	SUDDEN_DEATH_STEP = 0.35, -- seconden tussen twee vallende muurblokken
+
+	CORNER_ASSIST = true, -- automatisch de gang in schuiven bij hoeken
+	CORNER_TOLERANCE = 0.7, -- hoe ver (in vakjes) je naast een gang mag staan
+
+	INTERMISSION = 7, -- seconden tussen rondes (eindscherm)
 	MAX_PLAYERS = 4,
+
+	PLAYER_COLORS = {
+		{ name = "Rood", color = Color3.fromRGB(235, 70, 70) },
+		{ name = "Blauw", color = Color3.fromRGB(70, 140, 255) },
+		{ name = "Geel", color = Color3.fromRGB(255, 210, 60) },
+		{ name = "Groen", color = Color3.fromRGB(80, 210, 100) },
+	},
+
+	-- Geluiden. Vervang een id door een eigen geluid uit de Creator Store
+	-- ("rbxassetid://123..."), of zet hem op "" om dat geluid uit te zetten.
+	-- De ontploffing zelf komt van Roblox' eigen Explosion-effect.
+	SOUNDS = {
+		Place = { id = "rbxasset://sounds/button.wav", volume = 0.6 },
+		Throw = { id = "rbxasset://sounds/swoosh.wav", volume = 0.7 },
+		Kick = { id = "rbxasset://sounds/swoosh.wav", volume = 0.7, speed = 1.4 },
+		Pickup = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.6, speed = 1.2 },
+		Curse = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.7, speed = 0.55 },
+		Wall = { id = "rbxasset://sounds/action_jump_land.mp3", volume = 0.8 },
+		Death = { id = "rbxasset://sounds/uuhhh.mp3", volume = 0.7 },
+		Beep = { id = "rbxasset://sounds/button.wav", volume = 0.8, speed = 0.8 },
+		Go = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.9 },
+		Win = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.9, speed = 1.5 },
+		Explosion = { id = "", volume = 0.8 }, -- optioneel: extra ontploffingsgeluid
+	},
 }
 ]]></ProtectedString>
 </Properties></Item></Item>
-<Item class="ServerScriptService" referent="RBX7"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Script" referent="RBX6"><Properties>
+<Item class="ServerScriptService" referent="RBX15"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Script" referent="RBX13"><Properties>
 <string name="Name">BombermanServer</string>
-<ProtectedString name="Source"><![CDATA[-- Roblomberman: server (arena, bommen, goodies, rondes)
+<ProtectedString name="Source"><![CDATA[-- Roblomberman: server (rondes en spelers)
+-- De rest van de spelregels staat in de modules in de map "Bomberman":
+--   Grid      rooster-hulpfuncties
+--   State     gedeelde toestand
+--   Net       RemoteEvents en ronde-info voor de clients
+--   Sounds    geluiden
+--   Powerups  goodies en vloeken
+--   Arena     arena bouwen, kisten, sudden-death-muren
+--   Bombs     bommen leggen/gooien/schoppen/ontploffen en vuur
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
-local T, W, H = Config.TILE, Config.WIDTH, Config.HEIGHT
+local Modules = script.Parent:WaitForChild("Bomberman")
+local Grid = require(Modules:WaitForChild("Grid"))
+local S = require(Modules:WaitForChild("State"))
+local Net = require(Modules:WaitForChild("Net"))
+local Sounds = require(Modules:WaitForChild("Sounds"))
+local Powerups = require(Modules:WaitForChild("Powerups"))
+local Arena = require(Modules:WaitForChild("Arena"))
+local Bombs = require(Modules:WaitForChild("Bombs"))
 
 Players.CharacterAutoLoads = false
 
-----------------------------------------------------------------------
--- Remotes
-----------------------------------------------------------------------
-local remotes = Instance.new("Folder")
-remotes.Name = "BombRemotes"
-remotes.Parent = ReplicatedStorage
+Net.PlaceBomb.OnServerEvent:Connect(function(player)
+	Bombs.place(player)
+end)
+Net.ThrowBomb.OnServerEvent:Connect(function(player)
+	Bombs.throw(player)
+end)
 
-local function newRemote(name)
-	local r = Instance.new("RemoteEvent")
-	r.Name = name
-	r.Parent = remotes
-	return r
-end
-local placeRemote = newRemote("PlaceBomb")
-local throwRemote = newRemote("ThrowBomb")
-local announceRemote = newRemote("Announce") -- (tekst, seconden, klein?)
+local roundNumber = 0
 
 ----------------------------------------------------------------------
--- Grid helpers
+-- Rondes
 ----------------------------------------------------------------------
-local originX = -(W - 1) * T / 2
-local originZ = -(H - 1) * T / 2
-
-local function cellPos(x, z)
-	return Vector3.new(originX + (x - 1) * T, 0, originZ + (z - 1) * T)
-end
-local function cellOf(p)
-	return math.floor((p.X - originX) / T + 0.5) + 1, math.floor((p.Z - originZ) / T + 0.5) + 1
-end
-local function key(x, z)
-	return x * 100 + z
-end
-local function inBounds(x, z)
-	return x >= 1 and x <= W and z >= 1 and z <= H
-end
-
-local DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
-local CORNERS = { { 1, 1 }, { W, H }, { W, 1 }, { 1, H } }
-
-----------------------------------------------------------------------
--- State
-----------------------------------------------------------------------
-local arena
-local gen = 0
-local terrain = {} -- key -> "wall" | "crate"
-local crateParts = {}
-local bombs = {} -- set
-local bombAt = {} -- key -> bomb
-local powerups = {} -- key -> {part, kind}
-local flames = {} -- {cells = {key=true}, expires}
-local stats = {} -- player -> stats
-local alive = {} -- player -> true
-local roundPlayers = {}
-local roundState = "lobby" -- lobby | playing | over
-
-local function getRoot(player)
-	local c = player.Character
-	return c and c:FindFirstChild("HumanoidRootPart")
-end
-local function getHum(player)
-	local c = player.Character
-	return c and c:FindFirstChildOfClass("Humanoid")
-end
-local function announce(text, seconds, small, player)
-	if player then
-		announceRemote:FireClient(player, text, seconds or 3, small)
-	else
-		announceRemote:FireAllClients(text, seconds or 3, small)
+local function updateAliveCount()
+	local n = 0
+	for _ in pairs(S.alive) do
+		n += 1
 	end
+	Net.set("AliveCount", n)
 end
 
-----------------------------------------------------------------------
--- Goodies
-----------------------------------------------------------------------
-local POWERUPS = {
-	Range = {
-		emoji = "🔥", name = "Vuurbereik +1", color = Color3.fromRGB(255, 120, 40), weight = 25,
-		apply = function(s) s.range = math.min(s.range + 1, Config.MAX_RANGE) end,
-	},
-	Bomb = {
-		emoji = "💣", name = "Extra bom", color = Color3.fromRGB(90, 90, 110), weight = 25,
-		apply = function(s) s.maxBombs = math.min(s.maxBombs + 1, Config.MAX_BOMBS) end,
-	},
-	Speed = {
-		emoji = "👟", name = "Sneller lopen", color = Color3.fromRGB(80, 200, 255), weight = 15,
-		apply = function(s) s.speed = math.min(s.speed + Config.SPEED_STEP, Config.MAX_SPEED) end,
-	},
-	Pierce = {
-		emoji = "⚡", name = "Doorboor-bommen (vuur breekt door kisten)", color = Color3.fromRGB(255, 230, 60), weight = 10,
-		apply = function(s) s.pierce = true end,
-	},
-	Throw = {
-		emoji = "🧤", name = "Handschoen: bommen gooien (E)", color = Color3.fromRGB(120, 255, 120), weight = 15,
-		apply = function(s) s.throw = true end,
-	},
-}
+local function setAlive(plr, value)
+	S.alive[plr] = value and true or nil
+	plr:SetAttribute("Alive", value and true or false)
+	updateAliveCount()
+end
 
-local function pickPowerup()
-	local total = 0
-	for _, d in pairs(POWERUPS) do
-		total += d.weight
+local function getWins(plr)
+	local ls = plr:FindFirstChild("leaderstats")
+	local w = ls and ls:FindFirstChild("Wins")
+	return w
+end
+
+local function sendResult(winner, title)
+	local rows = {}
+	for _, plr in ipairs(Players:GetPlayers()) do
+		local w = getWins(plr)
+		rows[#rows + 1] = {
+			name = plr.DisplayName,
+			wins = w and w.Value or 0,
+			color = plr:GetAttribute("Color"),
+			winner = plr == winner,
+		}
 	end
-	local r = math.random() * total
-	for kind, d in pairs(POWERUPS) do
-		r -= d.weight
-		if r <= 0 then
-			return kind
+	table.sort(rows, function(a, b)
+		if a.wins ~= b.wins then
+			return a.wins > b.wins
 		end
-	end
-	return "Range"
+		return a.name < b.name
+	end)
+	Net.RoundResult:FireAllClients(title, rows, Config.INTERMISSION)
 end
 
-local function newStats()
-	return {
-		maxBombs = Config.START_BOMBS,
-		range = Config.START_RANGE,
-		speed = Config.START_SPEED,
-		pierce = false,
-		throw = false,
-		active = 0,
-		held = nil,
-		lastAction = 0,
-		invulUntil = 0,
-	}
-end
-
-local function syncStats(player)
-	local s = stats[player]
-	if not s then
+local function endRound(winner, reason)
+	if S.roundState ~= "playing" then
 		return
 	end
-	player:SetAttribute("Bombs", s.maxBombs)
-	player:SetAttribute("Range", s.range)
-	player:SetAttribute("Speed", s.speed)
-	player:SetAttribute("Pierce", s.pierce)
-	player:SetAttribute("Throw", s.throw)
-	local hum = getHum(player)
-	if hum then
-		hum.WalkSpeed = s.speed
+	S.roundState = "over"
+	Net.set("State", "over")
+	Net.set("SuddenDeath", false)
+	local title
+	if winner then
+		local w = getWins(winner)
+		if w then
+			w.Value += 1
+		end
+		title = "🏆 " .. winner.DisplayName .. " wint ronde " .. roundNumber .. "!"
+		Sounds.play("Win")
+	else
+		title = reason or "Gelijkspel!"
+	end
+	sendResult(winner, title)
+end
+
+local function checkRound()
+	if S.roundState ~= "playing" then
+		return
+	end
+	local count, last = 0, nil
+	for plr in pairs(S.alive) do
+		count += 1
+		last = plr
+	end
+	if #S.roundPlayers >= 2 then
+		if count <= 1 then
+			endRound(last)
+		end
+	elseif count == 0 then
+		endRound(nil, "Oef, je bent af!")
+	elseif #Players:GetPlayers() >= 2 then
+		-- Iemand speelde alleen en er is een tweede speler bij gekomen:
+		-- stop de oefenronde zodat iedereen samen kan beginnen.
+		endRound(nil, "Er doet iemand mee! Nieuwe ronde…")
 	end
 end
 
-local function removePowerup(k)
-	local pu = powerups[k]
-	if pu then
-		pu.part:Destroy()
-		powerups[k] = nil
+local function onDeath(player)
+	if not S.alive[player] then
+		return
+	end
+	setAlive(player, false)
+	local root = S.getRoot(player)
+	Sounds.play("Death", root and root.Position)
+	local s = S.stats[player]
+	if s and s.held then
+		Bombs.explode(s.held)
+	end
+	Net.announce("💀 Je bent af – kijk mee!", 3, false, player)
+	checkRound()
+end
+
+local function killOnCell(x, z)
+	local plr = S.playerOnCell(Grid.cellOf, x, z)
+	while plr do
+		local hum = S.getHum(plr)
+		if hum then
+			hum.Health = 0
+		end
+		onDeath(plr) -- direct, zodat playerOnCell hem niet nog eens vindt
+		plr = S.playerOnCell(Grid.cellOf, x, z)
 	end
 end
 
-local function spawnPowerup(x, z, kind)
-	local def = POWERUPS[kind]
-	local p = Instance.new("Part")
-	p.Name = "Goodie_" .. kind
-	p.Size = Vector3.new(2.4, 2.4, 2.4)
-	p.Material = Enum.Material.Neon
-	p.Color = def.color
-	p.Anchored = true
-	p.CanCollide = false
-	p.Position = cellPos(x, z) + Vector3.new(0, 2, 0)
-
-	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(64, 64)
-	gui.AlwaysOnTop = false
-	gui.Parent = p
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Text = def.emoji
-	label.TextScaled = true
-	label.Parent = gui
-
-	p.Parent = arena
-	TweenService:Create(p, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-		Position = cellPos(x, z) + Vector3.new(0, 2.8, 0),
-	}):Play()
-	powerups[key(x, z)] = { part = p, kind = kind }
+-- Na de rondetijd valt de arena van buiten naar binnen dicht
+local function suddenDeath()
+	local myGen = S.gen
+	Net.set("SuddenDeath", true)
+	Net.announce("☠️ SUDDEN DEATH! De muren komen eraan!", 3)
+	for _, c in ipairs(Grid.spiral()) do
+		if S.roundState ~= "playing" or S.gen ~= myGen then
+			return
+		end
+		local x, z = c[1], c[2]
+		if Arena.closeCell(x, z) then
+			local b = S.bombAt[Grid.key(x, z)]
+			if b then
+				Bombs.explode(b)
+			end
+			task.wait(0.2) -- het blok valt nog
+			if S.roundState ~= "playing" or S.gen ~= myGen then
+				return
+			end
+			killOnCell(x, z)
+			task.wait(math.max(0, Config.SUDDEN_DEATH_STEP - 0.2))
+		end
+	end
 end
 
+local function colorCharacter(char, color)
+	local hl = Instance.new("Highlight")
+	hl.FillColor = color
+	hl.FillTransparency = 0.45
+	hl.OutlineColor = Color3.new(1, 1, 1)
+	hl.OutlineTransparency = 0.2
+	hl.DepthMode = Enum.HighlightDepthMode.Occluded
+	hl.Parent = char
+end
+
+local function startRound()
+	Arena.build()
+	table.clear(S.alive)
+	table.clear(S.stats)
+	S.roundPlayers = {}
+	roundNumber += 1
+	Net.set("Round", roundNumber)
+
+	local list = Players:GetPlayers()
+	for _, plr in ipairs(list) do
+		plr:SetAttribute("InRound", false)
+		plr:SetAttribute("Alive", false)
+		plr:SetAttribute("Color", nil)
+		plr:SetAttribute("ColorName", nil)
+		plr:SetAttribute("Curse", nil)
+	end
+	for i = 1, math.min(#list, Config.MAX_PLAYERS) do
+		S.roundPlayers[i] = list[i]
+	end
+	for i = Config.MAX_PLAYERS + 1, #list do
+		Net.announce("De arena is vol – je doet mee in een volgende ronde.", 4, true, list[i])
+	end
+
+	for i, plr in ipairs(S.roundPlayers) do
+		S.stats[plr] = Powerups.newStats()
+		local ok = pcall(function()
+			plr:LoadCharacter()
+		end)
+		local char = ok and plr.Character
+		if char then
+			local root = char:WaitForChild("HumanoidRootPart", 5)
+			local hum = char:WaitForChild("Humanoid", 5)
+			if root and hum then
+				local c = Grid.CORNERS[i]
+				local pc = Config.PLAYER_COLORS[i]
+				char:PivotTo(CFrame.new(Grid.cellPos(c[1], c[2]) + Vector3.new(0, 3, 0)))
+				hum.UseJumpPower = true
+				hum.JumpPower = 0
+				colorCharacter(char, pc.color)
+				plr:SetAttribute("Color", pc.color)
+				plr:SetAttribute("ColorName", pc.name)
+				plr:SetAttribute("InRound", true)
+				setAlive(plr, true)
+				S.stats[plr].invulUntil = os.clock() + 2
+				local ff = Instance.new("ForceField")
+				ff.Parent = char
+				Debris:AddItem(ff, 2)
+				hum.Died:Connect(function()
+					onDeath(plr)
+				end)
+				Powerups.sync(plr)
+			end
+		end
+	end
+
+	S.roundState = "playing"
+	Net.set("RoundEndsAt", workspace:GetServerTimeNow() + Config.ROUND_TIME)
+	Net.set("SuddenDeath", false)
+	Net.set("State", "playing")
+	Net.announce("GO! 💣", 1.5)
+	Sounds.play("Go")
+	checkRound()
+end
+
+task.spawn(function()
+	while true do
+		while #Players:GetPlayers() == 0 do
+			task.wait(1)
+		end
+		S.roundState = "lobby"
+		Net.set("State", "lobby")
+		for i = 3, 1, -1 do
+			Net.announce("Ronde begint over " .. i .. "…", 1)
+			Sounds.play("Beep")
+			task.wait(1)
+		end
+		startRound()
+		local deadline = os.clock() + Config.ROUND_TIME
+		local sudden = false
+		while S.roundState == "playing" do
+			if not sudden and os.clock() >= deadline then
+				sudden = true
+				task.spawn(suddenDeath)
+			end
+			checkRound()
+			task.wait(0.25)
+		end
+		task.wait(Config.INTERMISSION)
+	end
+end)
+
 ----------------------------------------------------------------------
--- Arena
+-- Spelers
 ----------------------------------------------------------------------
+Players.PlayerAdded:Connect(function(plr)
+	local ls = Instance.new("Folder")
+	ls.Name = "leaderstats"
+	local wins = Instance.new("IntValue")
+	wins.Name = "Wins"
+	wins.Parent = ls
+	ls.Parent = plr
+	plr:SetAttribute("Alive", false)
+	plr:SetAttribute("InRound", false)
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+	local s = S.stats[plr]
+	if s and s.held then
+		Bombs.explode(s.held)
+	end
+	S.alive[plr] = nil
+	S.stats[plr] = nil
+	-- (de speler blijft in roundPlayers staan, zodat de laatste overblijver wint)
+	updateAliveCount()
+	checkRound()
+end)
+
+----------------------------------------------------------------------
+-- Hoofdlus
+----------------------------------------------------------------------
+RunService.Heartbeat:Connect(function(dt)
+	local now = os.clock()
+	Bombs.update(now, dt)
+	Bombs.updateFlames(now)
+	Powerups.update(now)
+
+	-- 💩-vloek: legt vanzelf bommen
+	for plr in pairs(S.alive) do
+		local s = S.stats[plr]
+		if s and s.curse == "autobomb" then
+			Bombs.place(plr, true)
+		end
+	end
+end)
+]]></ProtectedString>
+</Properties></Item><Item class="Folder" referent="RBX14"><Properties><string name="Name">Bomberman</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties>
+<string name="Name">Arena</string>
+<ProtectedString name="Source"><![CDATA[-- Arena: vloer, muren, kisten, en muren die vallen tijdens sudden death
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+local Grid = require(script.Parent.Grid)
+local S = require(script.Parent.State)
+local Powerups = require(script.Parent.Powerups)
+local Sounds = require(script.Parent.Sounds)
+
+local T, W, H = Grid.T, Grid.W, Grid.H
+local Arena = {}
+
+local WALL_COLOR = Color3.fromRGB(110, 110, 120)
+
+-- Vakjes rond de startplekken blijven leeg, zodat je niet vast zit
 local function isSafe(x, z)
-	for _, c in ipairs(CORNERS) do
+	for _, c in ipairs(Grid.CORNERS) do
 		local ax, az = math.abs(x - c[1]), math.abs(z - c[2])
 		if (az == 0 and ax <= 2) or (ax == 0 and az <= 2) or (ax == 2 and az == 1) or (ax == 1 and az == 2) then
 			return true
@@ -244,41 +420,41 @@ local function makePart(size, pos, color, material)
 	p.Position = pos
 	p.Color = color
 	p.Material = material
-	p.Parent = arena
+	p.Parent = S.arena
 	return p
 end
 
-local function buildArena()
-	if arena then
-		arena:Destroy()
+function Arena.build()
+	if S.arena then
+		S.arena:Destroy()
 	end
-	gen += 1
-	table.clear(terrain)
-	table.clear(crateParts)
-	table.clear(bombs)
-	table.clear(bombAt)
-	table.clear(powerups)
-	table.clear(flames)
+	S.gen += 1
+	table.clear(S.terrain)
+	table.clear(S.crateParts)
+	table.clear(S.bombs)
+	table.clear(S.bombAt)
+	table.clear(S.powerups)
+	table.clear(S.flames)
 
-	arena = Instance.new("Folder")
-	arena.Name = "Arena"
-	arena.Parent = workspace
+	S.arena = Instance.new("Folder")
+	S.arena.Name = "Arena"
+	S.arena.Parent = workspace
 
 	local light = Color3.fromRGB(96, 168, 90)
 	local dark = Color3.fromRGB(80, 148, 76)
 	for x = 1, W do
 		for z = 1, H do
-			local floor = makePart(Vector3.new(T, 1, T), cellPos(x, z) + Vector3.new(0, -0.5, 0), (x + z) % 2 == 0 and light or dark, Enum.Material.Grass)
+			local floor = makePart(Vector3.new(T, 1, T), Grid.cellPos(x, z) + Vector3.new(0, -0.5, 0), (x + z) % 2 == 0 and light or dark, Enum.Material.Grass)
 			floor.Name = "Floor"
 			if x % 2 == 0 and z % 2 == 0 then
-				terrain[key(x, z)] = "wall"
-				local w = makePart(Vector3.new(T, T, T), cellPos(x, z) + Vector3.new(0, T / 2, 0), Color3.fromRGB(110, 110, 120), Enum.Material.Concrete)
+				S.terrain[Grid.key(x, z)] = "wall"
+				local w = makePart(Vector3.new(T, T, T), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), WALL_COLOR, Enum.Material.Concrete)
 				w.Name = "Wall"
 			elseif not isSafe(x, z) and math.random() < Config.CRATE_CHANCE then
-				terrain[key(x, z)] = "crate"
-				local c = makePart(Vector3.new(T - 0.1, T - 0.1, T - 0.1), cellPos(x, z) + Vector3.new(0, T / 2, 0), Color3.fromRGB(176, 124, 70), Enum.Material.WoodPlanks)
+				S.terrain[Grid.key(x, z)] = "crate"
+				local c = makePart(Vector3.new(T - 0.1, T - 0.1, T - 0.1), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), Color3.fromRGB(176, 124, 70), Enum.Material.WoodPlanks)
 				c.Name = "Crate"
-				crateParts[key(x, z)] = c
+				S.crateParts[Grid.key(x, z)] = c
 			end
 		end
 	end
@@ -292,29 +468,106 @@ local function buildArena()
 	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(hw + T / 2, T, 0), rim, Enum.Material.Slate)
 end
 
-local function destroyCrate(x, z)
-	local k = key(x, z)
-	terrain[k] = nil
-	local part = crateParts[k]
-	crateParts[k] = nil
+local function removeCratePart(k)
+	local part = S.crateParts[k]
+	S.crateParts[k] = nil
 	if part then
 		TweenService:Create(part, TweenInfo.new(0.3), { Transparency = 1, Size = part.Size * 0.6 }):Play()
 		Debris:AddItem(part, 0.4)
 	end
+end
+
+function Arena.destroyCrate(x, z)
+	local k = Grid.key(x, z)
+	S.terrain[k] = nil
+	removeCratePart(k)
 	if math.random() < Config.DROP_CHANCE then
-		local kind = pickPowerup()
-		local myGen = gen
+		local kind = Powerups.pick()
+		local myGen = S.gen
 		task.delay(Config.FLAME_TIME + 0.05, function()
-			if myGen == gen and not terrain[k] and not powerups[k] and not bombAt[k] then
-				spawnPowerup(x, z, kind)
+			if myGen == S.gen and not S.terrain[k] and not S.powerups[k] and not S.bombAt[k] then
+				Powerups.spawn(x, z, kind)
 			end
 		end)
 	end
 end
 
+-- Sudden death: er valt een muurblok op dit vakje. Geeft false als er al een muur stond.
+function Arena.closeCell(x, z)
+	local k = Grid.key(x, z)
+	if S.terrain[k] == "wall" then
+		return false
+	end
+	if S.terrain[k] == "crate" then
+		removeCratePart(k)
+	end
+	S.terrain[k] = "wall"
+	Powerups.remove(k)
+
+	local target = Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0)
+	local w = makePart(Vector3.new(T, T, T), target + Vector3.new(0, 24, 0), Color3.fromRGB(150, 60, 60), Enum.Material.Concrete)
+	w.Name = "DeathWall"
+	w.CanCollide = false
+	TweenService:Create(w, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = target }):Play()
+	task.delay(0.25, function()
+		if w.Parent then
+			w.CanCollide = true
+		end
+	end)
+	Sounds.play("Wall", target)
+	return true
+end
+
+return Arena
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX2"><Properties>
+<string name="Name">Bombs</string>
+<ProtectedString name="Source"><![CDATA[-- Bommen: leggen, gooien, schoppen, ontploffen en het vuur
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+local Grid = require(script.Parent.Grid)
+local S = require(script.Parent.State)
+local Powerups = require(script.Parent.Powerups)
+local Arena = require(script.Parent.Arena)
+local Sounds = require(script.Parent.Sounds)
+
+local T = Grid.T
+local key = Grid.key
+local BOMB_Y = Vector3.new(0, 1.6, 0)
+
+local Bombs = {}
+
 ----------------------------------------------------------------------
--- Bommen
+-- Hulpjes
 ----------------------------------------------------------------------
+
+-- Wordt dit vakje al gebruikt als landingsplek van een gegooide bom?
+local function isTargeted(x, z)
+	for b in pairs(S.bombs) do
+		if b.state == "flying" and b.x == x and b.z == z then
+			return true
+		end
+	end
+	return false
+end
+
+-- Vrij vakje voor een bom: geen muur/kist, geen andere bom (en eventueel geen speler)
+local function cellFree(x, z, checkPlayers)
+	if not Grid.inBounds(x, z) then
+		return false
+	end
+	local k = key(x, z)
+	if S.terrain[k] or S.bombAt[k] or isTargeted(x, z) then
+		return false
+	end
+	if checkPlayers and S.playerOnCell(Grid.cellOf, x, z) then
+		return false
+	end
+	return true
+end
+
 local function newBombPart()
 	local p = Instance.new("Part")
 	p.Name = "Bomb"
@@ -324,6 +577,14 @@ local function newBombPart()
 	p.Color = Color3.fromRGB(25, 25, 30)
 	p.Anchored = true
 	p.CanCollide = false
+
+	-- Alleen de mesh pulseert; de botsingsvorm van het onderdeel blijft gelijk
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = p
+	TweenService:Create(mesh, TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		Scale = Vector3.new(1.16, 1.16, 1.16),
+	}):Play()
 
 	local att = Instance.new("Attachment")
 	att.Position = Vector3.new(0, 1.6, 0)
@@ -342,18 +603,15 @@ local function newBombPart()
 	pl.Range = 8
 	pl.Parent = p
 
-	TweenService:Create(p, TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-		Size = Vector3.new(3.7, 3.7, 3.7),
-	}):Play()
 	TweenService:Create(p, TweenInfo.new(Config.FUSE, Enum.EasingStyle.Linear), { Color = Color3.fromRGB(210, 30, 30) }):Play()
-	p.Parent = arena
+	p.Parent = S.arena
 	return p
 end
 
 local function spawnBomb(player, x, z)
-	local s = stats[player]
+	local s = S.stats[player]
 	local part = newBombPart()
-	part.Position = cellPos(x, z) + Vector3.new(0, 1.6, 0)
+	part.Position = Grid.cellPos(x, z) + BOMB_Y
 	local bomb = {
 		owner = player,
 		holder = nil,
@@ -362,13 +620,14 @@ local function spawnBomb(player, x, z)
 		range = s.range,
 		pierce = s.pierce,
 		explodeAt = os.clock() + Config.FUSE,
-		state = "placed", -- placed | held | flying
+		state = "placed", -- placed | held | flying | sliding
 		solid = false,
 		part = part,
 	}
-	bombAt[key(x, z)] = bomb
-	bombs[bomb] = true
+	S.bombAt[key(x, z)] = bomb
+	S.bombs[bomb] = true
 	s.active += 1
+	Sounds.play("Place", part.Position)
 end
 
 local function spawnFlame(x, z)
@@ -377,62 +636,77 @@ local function spawnFlame(x, z)
 	f.Anchored = true
 	f.CanCollide = false
 	f.CanTouch = false
+	f.CanQuery = false
 	f.Material = Enum.Material.Neon
 	f.Color = Color3.fromRGB(255, 140, 30)
 	f.Size = Vector3.new(T - 0.8, 2.4, T - 0.8)
-	f.Position = cellPos(x, z) + Vector3.new(0, 1.2, 0)
+	f.Position = Grid.cellPos(x, z) + Vector3.new(0, 1.2, 0)
 	f.Transparency = 0.05
-	f.Parent = arena
+	f.Parent = S.arena
 	TweenService:Create(f, TweenInfo.new(Config.FLAME_TIME), { Transparency = 1 }):Play()
 	Debris:AddItem(f, Config.FLAME_TIME + 0.1)
 end
 
-local function explode(bomb)
+----------------------------------------------------------------------
+-- Ontploffen
+----------------------------------------------------------------------
+function Bombs.explode(bomb)
 	if bomb.exploded then
 		return
 	end
 	bomb.exploded = true
-	bombs[bomb] = nil
+	S.bombs[bomb] = nil
 	local k = key(bomb.x, bomb.z)
-	if bombAt[k] == bomb then
-		bombAt[k] = nil
+	if S.bombAt[k] == bomb then
+		S.bombAt[k] = nil
 	end
-	local os_ = stats[bomb.owner]
+	local os_ = S.stats[bomb.owner]
 	if os_ then
 		os_.active = math.max(0, os_.active - 1)
 	end
 	if bomb.holder then
-		local hs = stats[bomb.holder]
+		local hs = S.stats[bomb.holder]
 		if hs and hs.held == bomb then
 			hs.held = nil
 		end
 	end
+	local center = bomb.part.Position
 	bomb.part:Destroy()
+
+	-- Roblox-ontploffing alleen voor beeld en geluid (doet geen schade)
+	local e = Instance.new("Explosion")
+	e.Position = center
+	e.BlastRadius = 3
+	e.BlastPressure = 0
+	e.DestroyJointRadiusPercent = 0
+	e.ExplosionType = Enum.ExplosionType.NoCraters
+	e.Parent = S.arena
+	Sounds.play("Explosion", center)
 
 	local cells = { { bomb.x, bomb.z } }
 	local chain = {}
-	for _, d in ipairs(DIRS) do
+	for _, d in ipairs(Grid.DIRS) do
 		for i = 1, bomb.range do
 			local cx, cz = bomb.x + d[1] * i, bomb.z + d[2] * i
-			if not inBounds(cx, cz) then
+			if not Grid.inBounds(cx, cz) then
 				break
 			end
 			local ck = key(cx, cz)
-			local t = terrain[ck]
+			local t = S.terrain[ck]
 			if t == "wall" then
 				break
 			elseif t == "crate" then
-				destroyCrate(cx, cz)
+				Arena.destroyCrate(cx, cz)
 				cells[#cells + 1] = { cx, cz }
 				if not bomb.pierce then
 					break
 				end
 			else
 				cells[#cells + 1] = { cx, cz }
-				if powerups[ck] then
-					removePowerup(ck)
+				if S.powerups[ck] then
+					Powerups.remove(ck)
 				end
-				local ob = bombAt[ck]
+				local ob = S.bombAt[ck]
 				if ob then
 					chain[#chain + 1] = ob
 					break
@@ -446,71 +720,75 @@ local function explode(bomb)
 		set[key(c[1], c[2])] = true
 		spawnFlame(c[1], c[2])
 	end
-	flames[#flames + 1] = { cells = set, expires = os.clock() + Config.FLAME_TIME }
+	S.flames[#S.flames + 1] = { cells = set, expires = os.clock() + Config.FLAME_TIME }
 
 	for _, ob in ipairs(chain) do
-		explode(ob)
+		Bombs.explode(ob)
 	end
 end
 
-local function placeBomb(player)
-	local s = stats[player]
-	if not s or not alive[player] or roundState ~= "playing" then
-		return
-	end
+----------------------------------------------------------------------
+-- Acties van spelers
+----------------------------------------------------------------------
+local function rateLimited(s)
 	if os.clock() - s.lastAction < 0.15 then
-		return
+		return true
 	end
 	s.lastAction = os.clock()
+	return false
+end
+
+-- force = true: voor de "vanzelf bommen"-vloek (geen limiet op tempo)
+function Bombs.place(player, force)
+	local s = S.stats[player]
+	if not s or not S.alive[player] or S.roundState ~= "playing" then
+		return
+	end
+	if s.curse == "nobombs" then
+		return
+	end
+	if not force and rateLimited(s) then
+		return
+	end
 	if s.active >= s.maxBombs then
 		return
 	end
-	local root = getRoot(player)
+	local root = S.getRoot(player)
 	if not root then
 		return
 	end
-	local x, z = cellOf(root.Position)
-	if not inBounds(x, z) or terrain[key(x, z)] or bombAt[key(x, z)] then
+	local x, z = Grid.cellOf(root.Position)
+	if not cellFree(x, z, false) then
 		return
 	end
 	spawnBomb(player, x, z)
 end
 
-local function throwAction(player)
-	local s = stats[player]
-	if not s or not alive[player] or not s.throw or roundState ~= "playing" then
+function Bombs.throw(player)
+	local s = S.stats[player]
+	if not s or not S.alive[player] or not s.throw or S.roundState ~= "playing" then
 		return
 	end
-	if os.clock() - s.lastAction < 0.15 then
+	if rateLimited(s) then
 		return
 	end
-	s.lastAction = os.clock()
-	local root = getRoot(player)
+	local root = S.getRoot(player)
 	if not root then
 		return
 	end
 
-	local look = root.CFrame.LookVector
-	local dx, dz = 0, 0
-	if math.abs(look.X) > math.abs(look.Z) then
-		dx = look.X > 0 and 1 or -1
-	else
-		dz = look.Z > 0 and 1 or -1
-	end
-	local sx, sz = cellOf(root.Position)
+	local dx, dz = Grid.axisDir(root.CFrame.LookVector)
+	local sx, sz = Grid.cellOf(root.Position)
 
 	if s.held then
 		local bomb = s.held
 		local tx, tz
-		local function free(cx, cz)
-			return inBounds(cx, cz) and not terrain[key(cx, cz)] and not bombAt[key(cx, cz)]
-		end
-		for step = Config.THROW_DISTANCE, 14 do
+		for step = Config.THROW_DISTANCE, math.max(Grid.W, Grid.H) do
 			local cx, cz = sx + dx * step, sz + dz * step
-			if not inBounds(cx, cz) then
+			if not Grid.inBounds(cx, cz) then
 				break
 			end
-			if free(cx, cz) then
+			if cellFree(cx, cz, false) then
 				tx, tz = cx, cz
 				break
 			end
@@ -518,7 +796,7 @@ local function throwAction(player)
 		if not tx then
 			for step = Config.THROW_DISTANCE - 1, 0, -1 do
 				local cx, cz = sx + dx * step, sz + dz * step
-				if free(cx, cz) then
+				if cellFree(cx, cz, false) then
 					tx, tz = cx, cz
 					break
 				end
@@ -531,18 +809,20 @@ local function throwAction(player)
 		bomb.holder = nil
 		bomb.state = "flying"
 		bomb.solid = false
+		-- Let op: tijdens de vlucht staat de bom NIET in bombAt, zodat vuur hem
+		-- niet in de lucht laat ontploffen. Hij landt op (x, z).
 		bomb.x, bomb.z = tx, tz
-		bombAt[key(tx, tz)] = bomb
 		bomb.from = bomb.part.Position
-		bomb.to = cellPos(tx, tz) + Vector3.new(0, 1.6, 0)
+		bomb.to = Grid.cellPos(tx, tz) + BOMB_Y
 		bomb.t0 = os.clock()
 		bomb.dur = math.max(0.35, (bomb.to - bomb.from).Magnitude / Config.THROW_SPEED)
+		Sounds.play("Throw", bomb.from)
 	else
 		for _, c in ipairs({ { sx, sz }, { sx + dx, sz + dz } }) do
 			local k = key(c[1], c[2])
-			local b = bombAt[k]
+			local b = S.bombAt[k]
 			if b and b.state == "placed" then
-				bombAt[k] = nil
+				S.bombAt[k] = nil
 				b.state = "held"
 				b.holder = player
 				b.solid = false
@@ -554,179 +834,101 @@ local function throwAction(player)
 	end
 end
 
-placeRemote.OnServerEvent:Connect(placeBomb)
-throwRemote.OnServerEvent:Connect(throwAction)
-
-----------------------------------------------------------------------
--- Rondes
-----------------------------------------------------------------------
-local function endRound(winner)
-	if roundState ~= "playing" then
+local function kick(bomb, dx, dz)
+	if not cellFree(bomb.x + dx, bomb.z + dz, true) then
 		return
 	end
-	roundState = "over"
-	if winner then
-		local ls = winner:FindFirstChild("leaderstats")
-		if ls and ls:FindFirstChild("Wins") then
-			ls.Wins.Value += 1
-		end
-		announce("🏆 " .. winner.DisplayName .. " wint de ronde!", 5)
-	else
-		announce("Gelijkspel! Volgende ronde komt eraan…", 5)
-	end
+	bomb.state = "sliding"
+	bomb.dx, bomb.dz = dx, dz
+	bomb.slide = 0
+	bomb.solid = false
+	bomb.part.CanCollide = false
+	Sounds.play("Kick", bomb.part.Position)
 end
 
-local function checkRound()
-	if roundState ~= "playing" then
-		return
-	end
-	local count, last = 0, nil
-	for plr in pairs(alive) do
-		count += 1
-		last = plr
-	end
-	if #roundPlayers >= 2 then
-		if count <= 1 then
-			endRound(last)
-		end
-	elseif count == 0 then
-		endRound(nil)
-	end
-end
-
-local function onDeath(player)
-	if not alive[player] then
-		return
-	end
-	alive[player] = nil
-	local s = stats[player]
-	if s and s.held then
-		explode(s.held)
-	end
-	checkRound()
-end
-
-local function startRound()
-	buildArena()
-	table.clear(alive)
-	table.clear(stats)
-	roundPlayers = {}
-
-	local list = Players:GetPlayers()
-	for i = 1, math.min(#list, Config.MAX_PLAYERS) do
-		roundPlayers[i] = list[i]
-	end
-	for i = Config.MAX_PLAYERS + 1, #list do
-		announce("De arena is vol – je doet mee in een volgende ronde.", 4, true, list[i])
-	end
-
-	for i, plr in ipairs(roundPlayers) do
-		stats[plr] = newStats()
-		local ok = pcall(function()
-			plr:LoadCharacter()
-		end)
-		local char = ok and plr.Character
-		if char then
-			local root = char:WaitForChild("HumanoidRootPart", 5)
-			local hum = char:WaitForChild("Humanoid", 5)
-			if root and hum then
-				local c = CORNERS[i]
-				char:PivotTo(CFrame.new(cellPos(c[1], c[2]) + Vector3.new(0, 3, 0)))
-				hum.UseJumpPower = true
-				hum.JumpPower = 0
-				alive[plr] = true
-				stats[plr].invulUntil = os.clock() + 2
-				local ff = Instance.new("ForceField")
-				ff.Parent = char
-				Debris:AddItem(ff, 2)
-				hum.Died:Connect(function()
-					onDeath(plr)
-				end)
-				syncStats(plr)
+-- Spelers met de schopschoen die tegen een bom aan lopen, schoppen hem weg
+local function checkKicks()
+	for plr in pairs(S.alive) do
+		local s = S.stats[plr]
+		local root = S.getRoot(plr)
+		local hum = S.getHum(plr)
+		if s and s.kick and root and hum and hum.MoveDirection.Magnitude > 0.5 then
+			local dx, dz = Grid.axisDir(hum.MoveDirection)
+			local px, pz = Grid.cellOf(root.Position)
+			local b = S.bombAt[key(px + dx, pz + dz)]
+			if b and b.state == "placed" and b.solid then
+				local center = Grid.cellPos(b.x, b.z)
+				local along = math.abs(dx ~= 0 and (center.X - root.Position.X) or (center.Z - root.Position.Z))
+				local side = math.abs(dx ~= 0 and (center.Z - root.Position.Z) or (center.X - root.Position.X))
+				if along < T * 0.85 and side < T * 0.45 then
+					kick(b, dx, dz)
+				end
 			end
 		end
 	end
-
-	roundState = "playing"
-	announce("GO! 💣", 1.5)
-	checkRound()
 end
 
-task.spawn(function()
-	while true do
-		while #Players:GetPlayers() == 0 do
-			task.wait(1)
-		end
-		roundState = "lobby"
-		for i = 3, 1, -1 do
-			announce("Ronde begint over " .. i .. "…", 1)
-			task.wait(1)
-		end
-		startRound()
-		while roundState == "playing" do
-			task.wait(0.25)
-		end
-		task.wait(Config.INTERMISSION)
-	end
-end)
-
-Players.PlayerAdded:Connect(function(plr)
-	local ls = Instance.new("Folder")
-	ls.Name = "leaderstats"
-	local wins = Instance.new("IntValue")
-	wins.Name = "Wins"
-	wins.Parent = ls
-	ls.Parent = plr
-	task.delay(3, function()
-		if plr.Parent and roundState == "playing" and not alive[plr] then
-			announce("Er is een ronde bezig – je doet mee in de volgende!", 4, true, plr)
-		end
-	end)
-end)
-
-Players.PlayerRemoving:Connect(function(plr)
-	alive[plr] = nil
-	local s = stats[plr]
-	if s and s.held then
-		explode(s.held)
-	end
-	stats[plr] = nil
-	checkRound()
-end)
-
 ----------------------------------------------------------------------
--- Hoofdlus
+-- Elke frame
 ----------------------------------------------------------------------
-RunService.Heartbeat:Connect(function()
-	local now = os.clock()
+function Bombs.update(now, dt)
+	checkKicks()
 
-	-- bommen
 	local list = {}
-	for b in pairs(bombs) do
+	for b in pairs(S.bombs) do
 		list[#list + 1] = b
 	end
 	for _, bomb in ipairs(list) do
 		if not bomb.exploded then
 			if bomb.state == "held" then
-				local root = bomb.holder and getRoot(bomb.holder)
-				if not root or not alive[bomb.holder] then
-					explode(bomb)
+				local root = bomb.holder and S.getRoot(bomb.holder)
+				if not root or not S.alive[bomb.holder] then
+					Bombs.explode(bomb)
 				else
 					bomb.part.Position = root.Position + Vector3.new(0, 3.6, 0)
-					local x, z = cellOf(root.Position)
-					bomb.x, bomb.z = math.clamp(x, 1, W), math.clamp(z, 1, H)
+					local x, z = Grid.cellOf(root.Position)
+					bomb.x, bomb.z = math.clamp(x, 1, Grid.W), math.clamp(z, 1, Grid.H)
 				end
 			elseif bomb.state == "flying" then
 				local a = math.clamp((now - bomb.t0) / bomb.dur, 0, 1)
-				local pos = bomb.from:Lerp(bomb.to, a) + Vector3.new(0, math.sin(math.pi * a) * 6, 0)
-				bomb.part.Position = pos
+				bomb.part.Position = bomb.from:Lerp(bomb.to, a) + Vector3.new(0, math.sin(math.pi * a) * 6, 0)
 				if a >= 1 then
-					bomb.state = "placed"
+					local k = key(bomb.x, bomb.z)
+					if S.terrain[k] or S.bombAt[k] then
+						-- er is intussen een muur of bom op de landingsplek gekomen
+						Bombs.explode(bomb)
+					else
+						S.bombAt[k] = bomb
+						bomb.state = "placed"
+					end
+				end
+			elseif bomb.state == "sliding" then
+				bomb.slide += Config.KICK_SPEED * dt
+				while bomb.slide >= 1 and bomb.state == "sliding" do
+					bomb.slide -= 1
+					local k = key(bomb.x, bomb.z)
+					if S.bombAt[k] == bomb then
+						S.bombAt[k] = nil
+					end
+					bomb.x, bomb.z = bomb.x + bomb.dx, bomb.z + bomb.dz
+					S.bombAt[key(bomb.x, bomb.z)] = bomb
+					if not cellFree(bomb.x + bomb.dx, bomb.z + bomb.dz, true) then
+						bomb.state = "placed"
+						bomb.slide = 0
+					end
+				end
+				local here = Grid.cellPos(bomb.x, bomb.z)
+				if bomb.state == "sliding" then
+					local nextPos = Grid.cellPos(bomb.x + bomb.dx, bomb.z + bomb.dz)
+					bomb.part.Position = here:Lerp(nextPos, bomb.slide) + BOMB_Y
+				else
+					bomb.part.Position = here + BOMB_Y
 				end
 			elseif bomb.state == "placed" and not bomb.solid then
+				-- pas massief als niemand er meer op staat (zo kun je van je eigen bom af lopen)
 				local clear = true
-				for plr in pairs(alive) do
-					local root = getRoot(plr)
+				for plr in pairs(S.alive) do
+					local root = S.getRoot(plr)
 					if root then
 						local d = Vector3.new(root.Position.X - bomb.part.Position.X, 0, root.Position.Z - bomb.part.Position.Z)
 						if d.Magnitude < 3 then
@@ -741,24 +943,26 @@ RunService.Heartbeat:Connect(function()
 				end
 			end
 			if not bomb.exploded and now >= bomb.explodeAt then
-				explode(bomb)
+				Bombs.explode(bomb)
 			end
 		end
 	end
+end
 
-	-- vuur
-	for i = #flames, 1, -1 do
-		local f = flames[i]
+-- Vuur doodt spelers die erin staan
+function Bombs.updateFlames(now)
+	for i = #S.flames, 1, -1 do
+		local f = S.flames[i]
 		if now >= f.expires then
-			table.remove(flames, i)
+			table.remove(S.flames, i)
 		else
-			for plr in pairs(alive) do
-				local s = stats[plr]
-				local root = getRoot(plr)
+			for plr in pairs(S.alive) do
+				local s = S.stats[plr]
+				local root = S.getRoot(plr)
 				if root and s and now >= s.invulUntil then
-					local x, z = cellOf(root.Position)
+					local x, z = Grid.cellOf(root.Position)
 					if f.cells[key(x, z)] then
-						local hum = getHum(plr)
+						local hum = S.getHum(plr)
 						if hum then
 							hum.Health = 0
 						end
@@ -767,45 +971,411 @@ RunService.Heartbeat:Connect(function()
 			end
 		end
 	end
+end
 
-	-- goodies oppakken
-	for plr in pairs(alive) do
-		local root = getRoot(plr)
-		local s = stats[plr]
+return Bombs
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX3"><Properties>
+<string name="Name">Grid</string>
+<ProtectedString name="Source"><![CDATA[-- Rooster-hulpfuncties: van vakje naar positie en terug
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+
+local T, W, H = Config.TILE, Config.WIDTH, Config.HEIGHT
+local originX = -(W - 1) * T / 2
+local originZ = -(H - 1) * T / 2
+
+local Grid = {
+	T = T,
+	W = W,
+	H = H,
+	DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } },
+	CORNERS = { { 1, 1 }, { W, H }, { W, 1 }, { 1, H } },
+}
+
+function Grid.cellPos(x, z)
+	return Vector3.new(originX + (x - 1) * T, 0, originZ + (z - 1) * T)
+end
+
+function Grid.cellOf(p)
+	return math.floor((p.X - originX) / T + 0.5) + 1, math.floor((p.Z - originZ) / T + 0.5) + 1
+end
+
+function Grid.key(x, z)
+	return x * 100 + z
+end
+
+function Grid.inBounds(x, z)
+	return x >= 1 and x <= W and z >= 1 and z <= H
+end
+
+-- Hoofdrichting (één as) van een vector, bijv. kijk- of looprichting
+function Grid.axisDir(v)
+	if math.abs(v.X) > math.abs(v.Z) then
+		return v.X > 0 and 1 or -1, 0
+	end
+	return 0, v.Z > 0 and 1 or -1
+end
+
+-- Alle vakjes in een spiraal van buiten naar binnen (voor sudden death)
+function Grid.spiral()
+	local out = {}
+	local x1, z1, x2, z2 = 1, 1, W, H
+	while x1 <= x2 and z1 <= z2 do
+		for x = x1, x2 do
+			out[#out + 1] = { x, z1 }
+		end
+		for z = z1 + 1, z2 do
+			out[#out + 1] = { x2, z }
+		end
+		if z1 < z2 then
+			for x = x2 - 1, x1, -1 do
+				out[#out + 1] = { x, z2 }
+			end
+		end
+		if x1 < x2 then
+			for z = z2 - 1, z1 + 1, -1 do
+				out[#out + 1] = { x1, z }
+			end
+		end
+		x1, z1, x2, z2 = x1 + 1, z1 + 1, x2 - 1, z2 - 1
+	end
+	return out
+end
+
+return Grid
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX4"><Properties>
+<string name="Name">Net</string>
+<ProtectedString name="Source"><![CDATA[-- RemoteEvents en ronde-informatie voor de clients
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Net = {}
+
+local folder = Instance.new("Folder")
+folder.Name = "BombRemotes"
+Net.folder = folder
+
+local function newRemote(name)
+	local r = Instance.new("RemoteEvent")
+	r.Name = name
+	r.Parent = folder
+	return r
+end
+
+Net.PlaceBomb = newRemote("PlaceBomb")
+Net.ThrowBomb = newRemote("ThrowBomb")
+Net.Announce = newRemote("Announce") -- (tekst, seconden, klein?)
+Net.RoundResult = newRemote("RoundResult") -- (titel, rijen)
+
+-- Ronde-info als attributen op de map: State, RoundEndsAt, SuddenDeath, AliveCount, Round
+folder:SetAttribute("State", "lobby")
+folder.Parent = ReplicatedStorage
+
+function Net.announce(text, seconds, small, player)
+	if player then
+		Net.Announce:FireClient(player, text, seconds or 3, small)
+	else
+		Net.Announce:FireAllClients(text, seconds or 3, small)
+	end
+end
+
+function Net.set(name, value)
+	folder:SetAttribute(name, value)
+end
+
+return Net
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX5"><Properties>
+<string name="Name">Powerups</string>
+<ProtectedString name="Source"><![CDATA[-- Goodies: wat ze doen, verschijnen, oppakken en de 💀-vloeken
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+local Grid = require(script.Parent.Grid)
+local S = require(script.Parent.State)
+local Net = require(script.Parent.Net)
+local Sounds = require(script.Parent.Sounds)
+
+local Powerups = {}
+
+local CURSES = {
+	slow = "🐌 Vervloekt: supertraag!",
+	nobombs = "🚫 Vervloekt: je kunt geen bommen leggen!",
+	autobomb = "💩 Vervloekt: je legt vanzelf bommen!",
+}
+local CURSE_KINDS = { "slow", "nobombs", "autobomb" }
+Powerups.CURSES = CURSES
+
+local DEFS = {
+	Range = {
+		emoji = "🔥", name = "Vuurbereik +1", color = Color3.fromRGB(255, 120, 40), weight = 25,
+		apply = function(s) s.range = math.min(s.range + 1, Config.MAX_RANGE) end,
+	},
+	Bomb = {
+		emoji = "💣", name = "Extra bom", color = Color3.fromRGB(90, 90, 110), weight = 25,
+		apply = function(s) s.maxBombs = math.min(s.maxBombs + 1, Config.MAX_BOMBS) end,
+	},
+	Speed = {
+		emoji = "👟", name = "Sneller lopen", color = Color3.fromRGB(80, 200, 255), weight = 15,
+		apply = function(s) s.speed = math.min(s.speed + Config.SPEED_STEP, Config.MAX_SPEED) end,
+	},
+	Pierce = {
+		emoji = "⚡", name = "Doorboor-bommen (vuur breekt door kisten)", color = Color3.fromRGB(255, 230, 60), weight = 10,
+		apply = function(s) s.pierce = true end,
+	},
+	Throw = {
+		emoji = "🧤", name = "Handschoen: bommen gooien (E)", color = Color3.fromRGB(120, 255, 120), weight = 12,
+		apply = function(s) s.throw = true end,
+	},
+	Kick = {
+		emoji = "🦶", name = "Schopschoen: loop tegen een bom om hem weg te schoppen", color = Color3.fromRGB(255, 150, 220), weight = 12,
+		apply = function(s) s.kick = true end,
+	},
+	Skull = {
+		emoji = "💀", name = "Vloek", color = Color3.fromRGB(150, 60, 200), weight = 8,
+		apply = function(s)
+			s.curse = CURSE_KINDS[math.random(#CURSE_KINDS)]
+			s.curseUntil = os.clock() + Config.CURSE_TIME
+		end,
+	},
+}
+Powerups.DEFS = DEFS
+local ORDER = { "Range", "Bomb", "Speed", "Pierce", "Throw", "Kick", "Skull" }
+
+function Powerups.pick()
+	local total = 0
+	for _, kind in ipairs(ORDER) do
+		total += DEFS[kind].weight
+	end
+	local r = math.random() * total
+	for _, kind in ipairs(ORDER) do
+		r -= DEFS[kind].weight
+		if r <= 0 then
+			return kind
+		end
+	end
+	return "Range"
+end
+
+function Powerups.newStats()
+	return {
+		maxBombs = Config.START_BOMBS,
+		range = Config.START_RANGE,
+		speed = Config.START_SPEED,
+		pierce = false,
+		throw = false,
+		kick = false,
+		curse = nil,
+		curseUntil = 0,
+		active = 0,
+		held = nil,
+		lastAction = 0,
+		invulUntil = 0,
+	}
+end
+
+function Powerups.sync(player)
+	local s = S.stats[player]
+	if not s then
+		return
+	end
+	player:SetAttribute("Bombs", s.maxBombs)
+	player:SetAttribute("Range", s.range)
+	player:SetAttribute("Speed", s.speed)
+	player:SetAttribute("Pierce", s.pierce)
+	player:SetAttribute("Throw", s.throw)
+	player:SetAttribute("Kick", s.kick)
+	player:SetAttribute("Curse", s.curse and CURSES[s.curse] or nil)
+	local hum = S.getHum(player)
+	if hum then
+		hum.WalkSpeed = s.curse == "slow" and Config.CURSE_SLOW_SPEED or s.speed
+	end
+end
+
+function Powerups.remove(k)
+	local pu = S.powerups[k]
+	if pu then
+		pu.part:Destroy()
+		S.powerups[k] = nil
+	end
+end
+
+function Powerups.spawn(x, z, kind)
+	local def = DEFS[kind]
+	local p = Instance.new("Part")
+	p.Name = "Goodie_" .. kind
+	p.Size = Vector3.new(2.4, 2.4, 2.4)
+	p.Material = Enum.Material.Neon
+	p.Color = def.color
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.Position = Grid.cellPos(x, z) + Vector3.new(0, 2, 0)
+
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(64, 64)
+	gui.Parent = p
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = def.emoji
+	label.TextScaled = true
+	label.Parent = gui
+
+	p.Parent = S.arena
+	TweenService:Create(p, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		Position = Grid.cellPos(x, z) + Vector3.new(0, 2.8, 0),
+	}):Play()
+	S.powerups[Grid.key(x, z)] = { part = p, kind = kind }
+end
+
+-- Elke frame: goodies oppakken en vloeken laten aflopen
+function Powerups.update(now)
+	for plr in pairs(S.alive) do
+		local root = S.getRoot(plr)
+		local s = S.stats[plr]
 		if root and s then
-			local x, z = cellOf(root.Position)
-			local k = key(x, z)
-			local pu = powerups[k]
+			local x, z = Grid.cellOf(root.Position)
+			local k = Grid.key(x, z)
+			local pu = S.powerups[k]
 			if pu then
-				local def = POWERUPS[pu.kind]
+				local def = DEFS[pu.kind]
 				def.apply(s)
-				removePowerup(k)
-				syncStats(plr)
-				announce(def.emoji .. " " .. def.name, 1.8, true, plr)
+				Powerups.remove(k)
+				Powerups.sync(plr)
+				if pu.kind == "Skull" then
+					Net.announce(CURSES[s.curse], 2.5, true, plr)
+					Sounds.play("Curse", root.Position)
+				else
+					Net.announce(def.emoji .. " " .. def.name, 1.8, true, plr)
+					Sounds.play("Pickup", root.Position)
+				end
+			end
+			if s.curse and now >= s.curseUntil then
+				s.curse = nil
+				Powerups.sync(plr)
+				Net.announce("✨ De vloek is voorbij", 1.8, true, plr)
 			end
 		end
 	end
-end)
+end
+
+return Powerups
 ]]></ProtectedString>
-</Properties></Item></Item>
-<Item class="StarterPlayer" referent="RBX10"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX9"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="LocalScript" referent="RBX8"><Properties>
+</Properties></Item><Item class="ModuleScript" referent="RBX6"><Properties>
+<string name="Name">Sounds</string>
+<ProtectedString name="Source"><![CDATA[-- Geluiden afspelen (ids staan in BombConfig.SOUNDS)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+
+local Sounds = {}
+
+local holder = Instance.new("Folder")
+holder.Name = "BombSounds"
+holder.Parent = workspace
+
+-- position = nil speelt het geluid overal even hard af
+function Sounds.play(name, position)
+	local def = Config.SOUNDS[name]
+	if not def or def.id == "" then
+		return
+	end
+	local s = Instance.new("Sound")
+	s.SoundId = def.id
+	s.Volume = def.volume or 0.6
+	s.PlaybackSpeed = def.speed or 1
+	s.RollOffMaxDistance = 300
+	s.RollOffMinDistance = 40
+	if position then
+		local att = Instance.new("Attachment")
+		att.WorldPosition = position
+		att.Parent = workspace.Terrain
+		s.Parent = att
+		Debris:AddItem(att, 6)
+	else
+		s.Parent = holder
+		Debris:AddItem(s, 6)
+	end
+	s:Play()
+end
+
+return Sounds
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX7"><Properties>
+<string name="Name">State</string>
+<ProtectedString name="Source"><![CDATA[-- Gedeelde toestand van het spel (één tabel die alle modules gebruiken)
+local State = {
+	arena = nil, -- Folder met alle onderdelen van de huidige arena
+	gen = 0, -- telt op bij elke nieuwe arena, zodat oude timers niets meer doen
+	terrain = {}, -- key -> "wall" | "crate"
+	crateParts = {}, -- key -> Part
+	bombs = {}, -- set van bommen
+	bombAt = {}, -- key -> bom die op dat vakje ligt
+	powerups = {}, -- key -> { part, kind }
+	flames = {}, -- lijst van { cells = {key=true}, expires }
+	stats = {}, -- player -> stats
+	alive = {}, -- player -> true
+	roundPlayers = {}, -- spelers die deze ronde meedoen
+	roundState = "lobby", -- lobby | playing | over
+}
+
+function State.getRoot(player)
+	local c = player.Character
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+function State.getHum(player)
+	local c = player.Character
+	return c and c:FindFirstChildOfClass("Humanoid")
+end
+
+-- Staat er een levende speler op dit vakje?
+function State.playerOnCell(cellOf, x, z)
+	for plr in pairs(State.alive) do
+		local root = State.getRoot(plr)
+		if root then
+			local px, pz = cellOf(root.Position)
+			if px == x and pz == z then
+				return plr
+			end
+		end
+	end
+	return nil
+end
+
+return State
+]]></ProtectedString>
+</Properties></Item></Item></Item>
+<Item class="StarterPlayer" referent="RBX18"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX17"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="LocalScript" referent="RBX16"><Properties>
 <string name="Name">BombermanClient</string>
-<ProtectedString name="Source"><![CDATA[-- Roblomberman: client (bovenaanzicht-camera, HUD, knoppen)
+<ProtectedString name="Source"><![CDATA[-- Roblomberman: client (bovenaanzicht-camera, HUD, knoppen, hoekhulp)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local ContextActionService = game:GetService("ContextActionService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local SoundService = game:GetService("SoundService")
 
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
 local remotes = ReplicatedStorage:WaitForChild("BombRemotes")
 local placeRemote = remotes:WaitForChild("PlaceBomb")
 local throwRemote = remotes:WaitForChild("ThrowBomb")
 local announceRemote = remotes:WaitForChild("Announce")
+local resultRemote = remotes:WaitForChild("RoundResult")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 camera.FieldOfView = 40
+
+local T = Config.TILE
+local originX = -(Config.WIDTH - 1) * T / 2
+local originZ = -(Config.HEIGHT - 1) * T / 2
+
+-- Geluid "hoor" je vanuit het midden van de arena, niet vanuit de hoge camera
+SoundService:SetListener(Enum.ListenerType.CFrame, CFrame.new(0, 20, 0))
 
 ----------------------------------------------------------------------
 -- Camera: vast bovenaanzicht, past zich aan het scherm aan
@@ -815,11 +1385,52 @@ RunService:BindToRenderStep("BombCamera", Enum.RenderPriority.Camera.Value + 1, 
 	local vp = camera.ViewportSize
 	local aspect = math.max(vp.X, 1) / math.max(vp.Y, 1)
 	local t = math.tan(math.rad(camera.FieldOfView / 2))
-	local halfH = (Config.HEIGHT * Config.TILE) / 2 + 8
-	local halfW = (Config.WIDTH * Config.TILE) / 2 + 5
+	local halfH = (Config.HEIGHT * T) / 2 + 8
+	local halfW = (Config.WIDTH * T) / 2 + 5
 	local dist = math.max(halfH / t, halfW / (t * aspect)) * 1.05
 	-- kleine kanteling zodat "omhoog" op het scherm = noord (-Z) blijft
 	camera.CFrame = CFrame.lookAt(Vector3.new(0, dist, dist * 0.22), Vector3.new(0, 0, 0))
+end)
+
+----------------------------------------------------------------------
+-- Hoekhulp: schuif automatisch de gang in als je net naast een opening staat.
+-- Muren staan op vakjes met even x én even z, dus horizontaal lopen kan
+-- alleen in rijen met een oneven z, en verticaal in kolommen met een oneven x.
+----------------------------------------------------------------------
+local function laneOffset(p, origin)
+	local idx = (p - origin) / T + 1 -- vakje (met komma)
+	local lane = math.floor((idx - 1) / 2 + 0.5) * 2 + 1 -- dichtstbijzijnde oneven vakje
+	return origin + (lane - 1) * T - p
+end
+
+RunService.Heartbeat:Connect(function(dt)
+	if not Config.CORNER_ASSIST then
+		return
+	end
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not hum or not root or hum.Health <= 0 then
+		return
+	end
+	local md = hum.MoveDirection
+	if md.Magnitude < 0.5 then
+		return
+	end
+	local maxStep = hum.WalkSpeed * dt
+	local tol = T * Config.CORNER_TOLERANCE
+	local pos = root.Position
+	if math.abs(md.X) > math.abs(md.Z) * 1.5 then
+		local off = laneOffset(pos.Z, originZ)
+		if math.abs(off) > 0.05 and math.abs(off) < tol then
+			root.CFrame += Vector3.new(0, 0, math.clamp(off, -maxStep, maxStep))
+		end
+	elseif math.abs(md.Z) > math.abs(md.X) * 1.5 then
+		local off = laneOffset(pos.X, originX)
+		if math.abs(off) > 0.05 and math.abs(off) < tol then
+			root.CFrame += Vector3.new(math.clamp(off, -maxStep, maxStep), 0, 0)
+		end
+	end
 end)
 
 ----------------------------------------------------------------------
@@ -850,73 +1461,170 @@ gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.Parent = player:WaitForChild("PlayerGui")
 
-local bar = Instance.new("Frame")
-bar.AnchorPoint = Vector2.new(0.5, 1)
-bar.Position = UDim2.new(0.5, 0, 1, -14)
-bar.Size = UDim2.fromOffset(520, 52)
-bar.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
-bar.BackgroundTransparency = 0.25
-bar.Parent = gui
-Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 12)
-local layout = Instance.new("UIListLayout")
-layout.FillDirection = Enum.FillDirection.Horizontal
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-layout.VerticalAlignment = Enum.VerticalAlignment.Center
-layout.Padding = UDim.new(0, 8)
-layout.Parent = bar
+-- Alles meeschalen met de schermbreedte (telefoon = kleiner)
+local uiScale = Instance.new("UIScale")
+uiScale.Parent = gui
+local function rescale()
+	local vp = camera.ViewportSize
+	uiScale.Scale = math.clamp(math.min(vp.X / 900, vp.Y / 600), 0.5, 1)
+end
+camera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale)
+rescale()
 
-local function statLabel(order)
+local function label(parent, props)
 	local l = Instance.new("TextLabel")
-	l.LayoutOrder = order
-	l.Size = UDim2.fromOffset(96, 36)
 	l.BackgroundTransparency = 1
 	l.TextColor3 = Color3.new(1, 1, 1)
 	l.Font = Enum.Font.GothamBold
 	l.TextSize = 18
-	l.Parent = bar
+	for k, v in pairs(props) do
+		l[k] = v
+	end
+	l.Parent = parent
 	return l
 end
-local lBombs, lRange, lSpeed, lPierce, lThrow = statLabel(1), statLabel(2), statLabel(3), statLabel(4), statLabel(5)
+
+-- Onderbalk met je goodies
+local bar = Instance.new("Frame")
+bar.AnchorPoint = Vector2.new(0.5, 1)
+bar.Position = UDim2.new(0.5, 0, 1, -14)
+bar.Size = UDim2.fromOffset(720, 52)
+bar.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+bar.BackgroundTransparency = 0.25
+bar.Parent = gui
+Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 12)
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 3
+stroke.Transparency = 1
+stroke.Parent = bar
+local layout = Instance.new("UIListLayout")
+layout.FillDirection = Enum.FillDirection.Horizontal
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.VerticalAlignment = Enum.VerticalAlignment.Center
+layout.Padding = UDim.new(0, 6)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = bar
+
+local function statLabel(order)
+	return label(bar, { LayoutOrder = order, Size = UDim2.fromOffset(96, 36) })
+end
+local lColor = statLabel(0)
+local lBombs, lRange, lSpeed = statLabel(1), statLabel(2), statLabel(3)
+local lPierce, lThrow, lKick = statLabel(4), statLabel(5), statLabel(6)
+lColor.Size = UDim2.fromOffset(70, 36)
+
+local curseLabel = label(gui, {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -72),
+	Size = UDim2.fromOffset(520, 28),
+	TextColor3 = Color3.fromRGB(220, 160, 255),
+	TextStrokeTransparency = 0.3,
+	Visible = false,
+})
+
+local function toggle(l, on, emoji)
+	l.Text = emoji .. (on and " aan" or " uit")
+	l.TextTransparency = on and 0 or 0.55
+end
 
 local function refresh()
-	lBombs.Text = "💣 " .. (player:GetAttribute("Bombs") or 1)
-	lRange.Text = "🔥 " .. (player:GetAttribute("Range") or 2)
-	lSpeed.Text = "👟 " .. (player:GetAttribute("Speed") or 16)
-	lPierce.Text = player:GetAttribute("Pierce") and "⚡ aan" or "⚡ uit"
-	lThrow.Text = player:GetAttribute("Throw") and "🧤 aan" or "🧤 uit"
-	lPierce.TextTransparency = player:GetAttribute("Pierce") and 0 or 0.55
-	lThrow.TextTransparency = player:GetAttribute("Throw") and 0 or 0.55
+	lBombs.Text = "💣 " .. (player:GetAttribute("Bombs") or Config.START_BOMBS)
+	lRange.Text = "🔥 " .. (player:GetAttribute("Range") or Config.START_RANGE)
+	lSpeed.Text = "👟 " .. (player:GetAttribute("Speed") or Config.START_SPEED)
+	toggle(lPierce, player:GetAttribute("Pierce"), "⚡")
+	toggle(lThrow, player:GetAttribute("Throw"), "🧤")
+	toggle(lKick, player:GetAttribute("Kick"), "🦶")
+	local color = player:GetAttribute("Color")
+	lColor.Text = player:GetAttribute("ColorName") or ""
+	lColor.TextColor3 = color or Color3.new(1, 1, 1)
+	stroke.Color = color or Color3.new(1, 1, 1)
+	stroke.Transparency = color and 0 or 1
+	local curse = player:GetAttribute("Curse")
+	curseLabel.Text = curse or ""
+	curseLabel.Visible = curse ~= nil
 end
-for _, name in ipairs({ "Bombs", "Range", "Speed", "Pierce", "Throw" }) do
+for _, name in ipairs({ "Bombs", "Range", "Speed", "Pierce", "Throw", "Kick", "Color", "ColorName", "Curse" }) do
 	player:GetAttributeChangedSignal(name):Connect(refresh)
 end
 refresh()
 
-local help = Instance.new("TextLabel")
-help.AnchorPoint = Vector2.new(0, 1)
-help.Position = UDim2.new(0, 14, 1, -14)
-help.Size = UDim2.fromOffset(260, 44)
-help.BackgroundTransparency = 1
-help.TextXAlignment = Enum.TextXAlignment.Left
-help.TextColor3 = Color3.new(1, 1, 1)
-help.TextStrokeTransparency = 0.5
-help.Font = Enum.Font.Gotham
-help.TextSize = 14
-help.Text = "Spatie: bom leggen\nE: bom oppakken / gooien (met 🧤)"
-help.Parent = gui
+-- Uitleg: andere tekst op telefoon/tablet dan met toetsenbord
+local touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local help = label(gui, {
+	AnchorPoint = Vector2.new(0, 0),
+	Position = UDim2.new(0, 14, 0, 60),
+	Size = UDim2.fromOffset(300, 44),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextYAlignment = Enum.TextYAlignment.Top,
+	TextStrokeTransparency = 0.5,
+	Font = Enum.Font.Gotham,
+	TextSize = 14,
+	Text = touchOnly and "💣-knop: bom leggen\n🧤-knop: bom oppakken / gooien"
+		or "Spatie: bom leggen\nE: bom oppakken / gooien (met 🧤)",
+})
 
-local banner = Instance.new("TextLabel")
-banner.AnchorPoint = Vector2.new(0.5, 0)
-banner.Position = UDim2.new(0.5, 0, 0, 24)
-banner.Size = UDim2.fromOffset(640, 56)
-banner.BackgroundTransparency = 1
-banner.TextColor3 = Color3.new(1, 1, 1)
-banner.TextStrokeTransparency = 0
-banner.Font = Enum.Font.GothamBlack
-banner.TextScaled = true
-banner.TextTransparency = 1
-banner.TextStrokeTransparency = 1
-banner.Parent = gui
+-- Timer rechtsboven
+local timerLabel = label(gui, {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -16, 0, 56),
+	Size = UDim2.fromOffset(260, 40),
+	TextXAlignment = Enum.TextXAlignment.Right,
+	TextStrokeTransparency = 0.3,
+	Font = Enum.Font.GothamBlack,
+	TextSize = 28,
+	Text = "",
+})
+
+-- Toeschouwers-melding
+local spectateLabel = label(gui, {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 96),
+	Size = UDim2.fromOffset(620, 30),
+	TextStrokeTransparency = 0.3,
+	TextSize = 20,
+	Visible = false,
+})
+
+RunService.RenderStepped:Connect(function()
+	local state = remotes:GetAttribute("State")
+	if state == "playing" then
+		if remotes:GetAttribute("SuddenDeath") then
+			timerLabel.Text = "☠️ SUDDEN DEATH"
+			timerLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
+		else
+			local left = math.max(0, (remotes:GetAttribute("RoundEndsAt") or 0) - workspace:GetServerTimeNow())
+			timerLabel.Text = string.format("⏱️ %d:%02d", math.floor(left / 60), math.floor(left % 60))
+			timerLabel.TextColor3 = left <= 15 and Color3.fromRGB(255, 200, 80) or Color3.new(1, 1, 1)
+		end
+	else
+		timerLabel.Text = ""
+	end
+
+	if state == "playing" and not player:GetAttribute("Alive") then
+		local n = remotes:GetAttribute("AliveCount") or 0
+		if player:GetAttribute("InRound") then
+			spectateLabel.Text = "👀 Je bent af – kijk mee! Nog " .. n .. " over."
+		else
+			spectateLabel.Text = "👀 Er is een ronde bezig – je doet mee in de volgende."
+		end
+		spectateLabel.Visible = true
+		bar.Visible = false
+	else
+		spectateLabel.Visible = false
+		bar.Visible = true
+	end
+end)
+
+-- Grote/kleine meldingen
+local banner = label(gui, {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 24),
+	Size = UDim2.fromOffset(640, 56),
+	Font = Enum.Font.GothamBlack,
+	TextScaled = true,
+	TextTransparency = 1,
+	TextStrokeTransparency = 1,
+})
 
 local shown = 0
 announceRemote.OnClientEvent:Connect(function(text, seconds, small)
@@ -933,6 +1641,80 @@ announceRemote.OnClientEvent:Connect(function(text, seconds, small)
 			TweenService:Create(banner, TweenInfo.new(0.4), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
 		end
 	end)
+end)
+
+----------------------------------------------------------------------
+-- Eindscherm na elke ronde
+----------------------------------------------------------------------
+local panel = Instance.new("Frame")
+panel.AnchorPoint = Vector2.new(0.5, 0.5)
+panel.Position = UDim2.fromScale(0.5, 0.5)
+panel.Size = UDim2.fromOffset(440, 120)
+panel.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+panel.BackgroundTransparency = 0.1
+panel.Visible = false
+panel.Parent = gui
+Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 16)
+local panelPad = Instance.new("UIPadding")
+panelPad.PaddingTop = UDim.new(0, 14)
+panelPad.PaddingBottom = UDim.new(0, 14)
+panelPad.PaddingLeft = UDim.new(0, 18)
+panelPad.PaddingRight = UDim.new(0, 18)
+panelPad.Parent = panel
+local panelList = Instance.new("UIListLayout")
+panelList.Padding = UDim.new(0, 6)
+panelList.SortOrder = Enum.SortOrder.LayoutOrder
+panelList.Parent = panel
+
+local resultShown = 0
+resultRemote.OnClientEvent:Connect(function(title, rows, seconds)
+	resultShown += 1
+	local mine = resultShown
+	for _, c in ipairs(panel:GetChildren()) do
+		if c:IsA("TextLabel") then
+			c:Destroy()
+		end
+	end
+	label(panel, {
+		LayoutOrder = 0,
+		Size = UDim2.new(1, 0, 0, 40),
+		Font = Enum.Font.GothamBlack,
+		TextScaled = true,
+		Text = title,
+	})
+	label(panel, {
+		LayoutOrder = 1,
+		Size = UDim2.new(1, 0, 0, 20),
+		Font = Enum.Font.Gotham,
+		TextSize = 15,
+		TextTransparency = 0.3,
+		Text = "Overwinningen",
+	})
+	for i, row in ipairs(rows) do
+		local l = label(panel, {
+			LayoutOrder = 1 + i,
+			Size = UDim2.new(1, 0, 0, 26),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 20,
+			Text = string.format("%s%d.  %s  –  %d", row.winner and "🏆 " or "", i, row.name, row.wins),
+		})
+		if row.color then
+			l.TextColor3 = row.color
+		end
+	end
+	panel.Size = UDim2.fromOffset(440, 28 + 46 + 26 + #rows * 32)
+	panel.Visible = true
+	task.delay(math.max(2, (seconds or 6) - 0.5), function()
+		if mine == resultShown then
+			panel.Visible = false
+		end
+	end)
+end)
+
+remotes:GetAttributeChangedSignal("State"):Connect(function()
+	if remotes:GetAttribute("State") == "lobby" then
+		panel.Visible = false
+	end
 end)
 ]]></ProtectedString>
 </Properties></Item></Item></Item>

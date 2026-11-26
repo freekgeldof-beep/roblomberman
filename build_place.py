@@ -15,12 +15,17 @@ def script(cls, name, path):
 def folder(cls, name, children=""):
     return f'<Item class="{cls}" referent="RBX{next(ref)}"><Properties><string name="Name">{name}</string></Properties>{children}</Item>'
 
+modules = "".join(
+    script("ModuleScript", f.stem, f.relative_to(root))
+    for f in sorted((root / "src/ServerScriptService/Bomberman").glob("*.lua"))
+)
+
 xml = f'''<roblox version="4">
 {folder("Workspace", "Workspace")}
 {folder("Lighting", "Lighting")}
 {folder("Players", "Players")}
 {folder("ReplicatedStorage", "ReplicatedStorage", script("ModuleScript", "BombConfig", "src/ReplicatedStorage/BombConfig.lua"))}
-{folder("ServerScriptService", "ServerScriptService", script("Script", "BombermanServer", "src/ServerScriptService/BombermanServer.server.lua"))}
+{folder("ServerScriptService", "ServerScriptService", script("Script", "BombermanServer", "src/ServerScriptService/BombermanServer.server.lua") + folder("Folder", "Bomberman", modules))}
 {folder("StarterPlayer", "StarterPlayer", folder("StarterPlayerScripts", "StarterPlayerScripts", script("LocalScript", "BombermanClient", "src/StarterPlayerScripts/BombermanClient.client.lua")))}
 </roblox>'''
 (root / "Roblomberman.rbxlx").write_text(xml)
