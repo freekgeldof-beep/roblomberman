@@ -8,6 +8,9 @@ local State = {
 	bombAt = {}, -- key -> bom die op dat vakje ligt
 	powerups = {}, -- key -> { part, kind }
 	flames = {}, -- lijst van { cells = {key=true}, expires }
+	warps = {}, -- key -> { x, z } van de andere warp
+	belts = {}, -- key -> { dx, dz }
+	toggles = {}, -- key -> { x, z, part, up, closed }
 	stats = {}, -- player -> stats
 	alive = {}, -- player -> true
 	roundPlayers = {}, -- spelers die deze ronde meedoen

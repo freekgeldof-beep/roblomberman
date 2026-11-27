@@ -1,6 +1,6 @@
 # Roblomberman 💣
 
-Een Bomberman-achtig Roblox-spel met bovenaanzicht, bommen en goodies. Tot 4 spelers per ronde; de laatste die overeind staat wint.
+Een Bomberman-achtig Roblox-spel met bovenaanzicht, bommen en goodies. Tot 8 spelers per ronde; de laatste die overeind staat wint.
 
 ## Besturing
 
@@ -24,9 +24,18 @@ Op mobiel staan 💣- en 🧤-knoppen op het scherm.
 
 Vuur laat andere bommen meteen ontploffen (kettingreacties).
 
+## Het veld
+
+- Het veld **groeit mee** met het aantal spelers: 13×13 vakjes voor 1–2 spelers, 17×13 voor 3–4, 21×17 voor 5–6 en 25×17 voor 7–8.
+- De **camera volgt je eigen speler** van boven. Ben je af, dan zoomt hij uit en zie je het hele veld.
+- Elke ronde doen er willekeurig een paar **bijzondere vakjes** mee (dat zie je aan het begin van de ronde):
+  - 🌀 **Warpzones**: stap erop en je komt bij de warp met dezelfde kleur uit. Geschopte bommen gaan er ook doorheen!
+  - ➡️ **Lopende banden**: nemen je mee in de richting van de gele strepen. Bommen schuiven ook mee.
+  - 🧱 **Schakelmuren**: rode blokken die om de 6 seconden omhoog komen (dan houden ze ook vuur tegen) en weer zakken.
+
 ## Rondes
 
-- Elke speler krijgt een eigen kleur (rood, blauw, geel, groen).
+- Elke speler krijgt een eigen kleur (rood, blauw, geel, groen, paars, oranje, roze, cyaan).
 - Een ronde duurt 2,5 minuut (timer rechtsboven). Daarna begint **sudden death**: de arena valt van buiten naar binnen dicht met muren.
 - Ben je af, dan kijk je mee tot de volgende ronde.
 - Na elke ronde zie je een scorebord met alle overwinningen.
@@ -61,7 +70,7 @@ Verwijder de Baseplate-part of laat hem staan (ligt onder de arena).
 
 ## Aanpassen
 
-Alle getallen (arenagrootte, lont, vuurtijd, kans op goodies, maximale upgrades, rondetijd, kleuren, geluiden) staan in `src/ReplicatedStorage/BombConfig.lua`.
+Alle getallen (veldgroottes per aantal spelers, camera, kans op warps/banden/schakelmuren, lont, vuurtijd, kans op goodies, maximale upgrades, rondetijd, kleuren, geluiden) staan in `src/ReplicatedStorage/BombConfig.lua`.
 
 De servercode is opgesplitst in modules in `src/ServerScriptService/Bomberman/`:
 
@@ -72,7 +81,7 @@ De servercode is opgesplitst in modules in `src/ServerScriptService/Bomberman/`:
 | `Net` | RemoteEvents en ronde-info voor de clients |
 | `Sounds` | geluiden afspelen |
 | `Powerups` | goodies en vloeken (nieuwe goodies voeg je toe in `DEFS` en `ORDER`) |
-| `Arena` | arena bouwen, kisten, sudden-death-muren |
+| `Arena` | arena bouwen, kisten, warps, banden, schakelmuren, sudden-death-muren |
 | `Bombs` | bommen leggen, gooien, schoppen, ontploffen en het vuur |
 
 Het hoofdscript `BombermanServer` regelt de rondes en spelers.

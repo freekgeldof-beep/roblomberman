@@ -182,14 +182,15 @@ local function colorCharacter(char, color)
 end
 
 local function startRound()
-	Arena.build()
+	local list = Players:GetPlayers()
+	local features = Arena.build(math.min(#list, Config.MAX_PLAYERS))
+	Arena.resetToggles(os.clock())
 	table.clear(S.alive)
 	table.clear(S.stats)
 	S.roundPlayers = {}
 	roundNumber += 1
 	Net.set("Round", roundNumber)
 
-	local list = Players:GetPlayers()
 	for _, plr in ipairs(list) do
 		plr:SetAttribute("InRound", false)
 		plr:SetAttribute("Alive", false)
@@ -214,7 +215,7 @@ local function startRound()
 			local root = char:WaitForChild("HumanoidRootPart", 5)
 			local hum = char:WaitForChild("Humanoid", 5)
 			if root and hum then
-				local c = Grid.CORNERS[i]
+				local c = Grid.spawns()[i]
 				local pc = Config.PLAYER_COLORS[i]
 				char:PivotTo(CFrame.new(Grid.cellPos(c[1], c[2]) + Vector3.new(0, 3, 0)))
 				hum.UseJumpPower = true
@@ -241,6 +242,11 @@ local function startRound()
 	Net.set("SuddenDeath", false)
 	Net.set("State", "playing")
 	Net.announce("GO! 💣", 1.5)
+	if #features > 0 then
+		task.delay(1.6, function()
+			Net.announce("Deze ronde: " .. table.concat(features, ", "), 3, true)
+		end)
+	end
 	Sounds.play("Go")
 	checkRound()
 end
@@ -301,11 +307,45 @@ end)
 ----------------------------------------------------------------------
 -- Hoofdlus
 ----------------------------------------------------------------------
+-- Warpzones: wie (bijna) in het midden van een warp staat, komt bij de andere uit
+local function updateWarps(now)
+	if next(S.warps) == nil then
+		return
+	end
+	for plr in pairs(S.alive) do
+		local s = S.stats[plr]
+		local root = S.getRoot(plr)
+		if s and root then
+			local x, z = Grid.cellOf(root.Position)
+			local k = Grid.key(x, z)
+			if s.warpCell and s.warpCell ~= k then
+				s.warpCell = nil -- van de warp af gestapt: hij werkt weer
+			end
+			local w = S.warps[k]
+			if w and not s.warpCell and now >= (s.warpReady or 0) and not S.terrain[k] and not S.terrain[Grid.key(w.x, w.z)] then
+				local c = Grid.cellPos(x, z)
+				local off = Vector3.new(root.Position.X - c.X, 0, root.Position.Z - c.Z)
+				if off.Magnitude < Grid.T * 0.3 then
+					local char = plr.Character
+					local look = root.CFrame.LookVector
+					local dest = Grid.cellPos(w.x, w.z) + Vector3.new(0, root.Position.Y, 0)
+					char:PivotTo(CFrame.lookAt(dest, dest + Vector3.new(look.X, 0, look.Z)))
+					s.warpCell = Grid.key(w.x, w.z)
+					s.warpReady = now + Config.WARP_COOLDOWN
+					Sounds.play("Warp", dest)
+				end
+			end
+		end
+	end
+end
+
 RunService.Heartbeat:Connect(function(dt)
 	local now = os.clock()
 	Bombs.update(now, dt)
 	Bombs.updateFlames(now)
 	Powerups.update(now)
+	Arena.updateToggles(now)
+	updateWarps(now)
 
 	-- 💩-vloek: legt vanzelf bommen
 	for plr in pairs(S.alive) do

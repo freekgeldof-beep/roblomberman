@@ -7,8 +7,15 @@
 <ProtectedString name="Source"><![CDATA[-- Gedeelde instellingen (server + client)
 return {
 	TILE = 4, -- grootte van één vakje in studs
-	WIDTH = 15, -- aantal vakjes (oneven!)
-	HEIGHT = 13, -- aantal vakjes (oneven!)
+
+	-- Het veld groeit mee met het aantal spelers (breedte/hoogte in vakjes, altijd oneven).
+	-- Met 1 + een veelvoud van 4 (13, 17, 21, 25) ligt het midden mooi symmetrisch.
+	ARENA_SIZES = {
+		{ players = 2, w = 13, h = 13 },
+		{ players = 4, w = 17, h = 13 },
+		{ players = 6, w = 21, h = 17 },
+		{ players = 8, w = 25, h = 17 },
+	},
 
 	CRATE_CHANCE = 0.75, -- kans dat een vrij vakje een kist wordt
 	DROP_CHANCE = 0.4, -- kans dat een kapotte kist een goodie laat vallen
@@ -37,13 +44,35 @@ return {
 	CORNER_TOLERANCE = 0.7, -- hoe ver (in vakjes) je naast een gang mag staan
 
 	INTERMISSION = 7, -- seconden tussen rondes (eindscherm)
-	MAX_PLAYERS = 4,
+	MAX_PLAYERS = 8,
+
+	-- Camera: volgt je eigen speler van boven. Zo veel vakjes zie je ongeveer om je heen.
+	CAMERA_FOLLOW = true,
+	CAMERA_VIEW_W = 15,
+	CAMERA_VIEW_H = 11,
+	CAMERA_SMOOTH = 6, -- hoe snel de camera bijdraait (hoger = strakker)
+
+	-- Bijzondere vakjes. Elke ronde wordt per soort gegooid of hij meedoet,
+	-- zodat elke ronde anders is. Zet een kans op 1 om hem altijd aan te hebben, of op 0 voor uit.
+	FEATURE_CHANCE = {
+		Warps = 0.75, -- warpzones: stap erop en je komt bij de andere uit
+		Belts = 0.75, -- lopende banden: duwen spelers en bommen mee
+		Toggles = 0.6, -- schakelmuren: gaan om de paar seconden omhoog en omlaag
+	},
+	WARP_COOLDOWN = 0.6, -- seconden voordat een warp je weer kan wegsturen
+	BELT_SPEED = 7, -- studs per seconde dat een band je meeneemt
+	BELT_BOMB_SPEED = 3, -- vakjes per seconde voor een bom op een band
+	TOGGLE_INTERVAL = 6, -- seconden tussen omhoog en omlaag van schakelmuren
 
 	PLAYER_COLORS = {
 		{ name = "Rood", color = Color3.fromRGB(235, 70, 70) },
 		{ name = "Blauw", color = Color3.fromRGB(70, 140, 255) },
 		{ name = "Geel", color = Color3.fromRGB(255, 210, 60) },
 		{ name = "Groen", color = Color3.fromRGB(80, 210, 100) },
+		{ name = "Paars", color = Color3.fromRGB(170, 90, 240) },
+		{ name = "Oranje", color = Color3.fromRGB(255, 140, 40) },
+		{ name = "Roze", color = Color3.fromRGB(255, 120, 200) },
+		{ name = "Cyaan", color = Color3.fromRGB(60, 220, 230) },
 	},
 
 	-- Geluiden. Vervang een id door een eigen geluid uit de Creator Store
@@ -60,6 +89,8 @@ return {
 		Beep = { id = "rbxasset://sounds/button.wav", volume = 0.8, speed = 0.8 },
 		Go = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.9 },
 		Win = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.9, speed = 1.5 },
+		Warp = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.7, speed = 0.8 },
+		Toggle = { id = "rbxasset://sounds/action_jump_land.mp3", volume = 0.4, speed = 1.3 },
 		Explosion = { id = "", volume = 0.8 }, -- optioneel: extra ontploffingsgeluid
 	},
 }
@@ -251,14 +282,15 @@ local function colorCharacter(char, color)
 end
 
 local function startRound()
-	Arena.build()
+	local list = Players:GetPlayers()
+	local features = Arena.build(math.min(#list, Config.MAX_PLAYERS))
+	Arena.resetToggles(os.clock())
 	table.clear(S.alive)
 	table.clear(S.stats)
 	S.roundPlayers = {}
 	roundNumber += 1
 	Net.set("Round", roundNumber)
 
-	local list = Players:GetPlayers()
 	for _, plr in ipairs(list) do
 		plr:SetAttribute("InRound", false)
 		plr:SetAttribute("Alive", false)
@@ -283,7 +315,7 @@ local function startRound()
 			local root = char:WaitForChild("HumanoidRootPart", 5)
 			local hum = char:WaitForChild("Humanoid", 5)
 			if root and hum then
-				local c = Grid.CORNERS[i]
+				local c = Grid.spawns()[i]
 				local pc = Config.PLAYER_COLORS[i]
 				char:PivotTo(CFrame.new(Grid.cellPos(c[1], c[2]) + Vector3.new(0, 3, 0)))
 				hum.UseJumpPower = true
@@ -310,6 +342,11 @@ local function startRound()
 	Net.set("SuddenDeath", false)
 	Net.set("State", "playing")
 	Net.announce("GO! 💣", 1.5)
+	if #features > 0 then
+		task.delay(1.6, function()
+			Net.announce("Deze ronde: " .. table.concat(features, ", "), 3, true)
+		end)
+	end
 	Sounds.play("Go")
 	checkRound()
 end
@@ -370,11 +407,45 @@ end)
 ----------------------------------------------------------------------
 -- Hoofdlus
 ----------------------------------------------------------------------
+-- Warpzones: wie (bijna) in het midden van een warp staat, komt bij de andere uit
+local function updateWarps(now)
+	if next(S.warps) == nil then
+		return
+	end
+	for plr in pairs(S.alive) do
+		local s = S.stats[plr]
+		local root = S.getRoot(plr)
+		if s and root then
+			local x, z = Grid.cellOf(root.Position)
+			local k = Grid.key(x, z)
+			if s.warpCell and s.warpCell ~= k then
+				s.warpCell = nil -- van de warp af gestapt: hij werkt weer
+			end
+			local w = S.warps[k]
+			if w and not s.warpCell and now >= (s.warpReady or 0) and not S.terrain[k] and not S.terrain[Grid.key(w.x, w.z)] then
+				local c = Grid.cellPos(x, z)
+				local off = Vector3.new(root.Position.X - c.X, 0, root.Position.Z - c.Z)
+				if off.Magnitude < Grid.T * 0.3 then
+					local char = plr.Character
+					local look = root.CFrame.LookVector
+					local dest = Grid.cellPos(w.x, w.z) + Vector3.new(0, root.Position.Y, 0)
+					char:PivotTo(CFrame.lookAt(dest, dest + Vector3.new(look.X, 0, look.Z)))
+					s.warpCell = Grid.key(w.x, w.z)
+					s.warpReady = now + Config.WARP_COOLDOWN
+					Sounds.play("Warp", dest)
+				end
+			end
+		end
+	end
+end
+
 RunService.Heartbeat:Connect(function(dt)
 	local now = os.clock()
 	Bombs.update(now, dt)
 	Bombs.updateFlames(now)
 	Powerups.update(now)
+	Arena.updateToggles(now)
+	updateWarps(now)
 
 	-- 💩-vloek: legt vanzelf bommen
 	for plr in pairs(S.alive) do
@@ -387,30 +458,39 @@ end)
 ]]></ProtectedString>
 </Properties></Item><Item class="Folder" referent="RBX14"><Properties><string name="Name">Bomberman</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties>
 <string name="Name">Arena</string>
-<ProtectedString name="Source"><![CDATA[-- Arena: vloer, muren, kisten, en muren die vallen tijdens sudden death
+<ProtectedString name="Source"><![CDATA[-- Arena: vloer, muren, kisten, bijzondere vakjes (warps, banden, schakelmuren)
+-- en de muren die vallen tijdens sudden death
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
 local Grid = require(script.Parent.Grid)
 local S = require(script.Parent.State)
+local Net = require(script.Parent.Net)
 local Powerups = require(script.Parent.Powerups)
 local Sounds = require(script.Parent.Sounds)
 
-local T, W, H = Grid.T, Grid.W, Grid.H
+local T = Grid.T
+local key = Grid.key
 local Arena = {}
 
 local WALL_COLOR = Color3.fromRGB(110, 110, 120)
+local WARP_COLORS = { Color3.fromRGB(170, 80, 255), Color3.fromRGB(40, 220, 255) }
+local TOGGLE_COLOR = Color3.fromRGB(230, 90, 60)
 
 -- Vakjes rond de startplekken blijven leeg, zodat je niet vast zit
-local function isSafe(x, z)
-	for _, c in ipairs(Grid.CORNERS) do
+local function isSafe(x, z, spawns)
+	for _, c in ipairs(spawns) do
 		local ax, az = math.abs(x - c[1]), math.abs(z - c[2])
 		if (az == 0 and ax <= 2) or (ax == 0 and az <= 2) or (ax == 2 and az == 1) or (ax == 1 and az == 2) then
 			return true
 		end
 	end
 	return false
+end
+
+local function isFixedWall(x, z)
+	return x % 2 == 0 and z % 2 == 0
 end
 
 local function makePart(size, pos, color, material)
@@ -424,39 +504,191 @@ local function makePart(size, pos, color, material)
 	return p
 end
 
-function Arena.build()
+----------------------------------------------------------------------
+-- Bijzondere vakjes kiezen (houden rekening met de veldgrootte)
+----------------------------------------------------------------------
+local function planWarps(reserved)
+	local W, H = Grid.W, Grid.H
+	local xq, zq = Grid.odd(W / 4), Grid.odd(H / 4)
+	local pairs_ = {
+		{ { xq, zq }, { W + 1 - xq, H + 1 - zq } },
+		{ { W + 1 - xq, zq }, { xq, H + 1 - zq } },
+	}
+	for i, pr in ipairs(pairs_) do
+		local a, b = pr[1], pr[2]
+		S.warps[key(a[1], a[2])] = { x = b[1], z = b[2], pair = i }
+		S.warps[key(b[1], b[2])] = { x = a[1], z = a[2], pair = i }
+		reserved[key(a[1], a[2])] = true
+		reserved[key(b[1], b[2])] = true
+	end
+end
+
+local function planBelts(reserved)
+	local W, H, XM, ZM = Grid.W, Grid.H, Grid.XM, Grid.ZM
+	-- één band door de middelste rij, en in grote velden ook één door de middelste kolom
+	local dx = math.random() < 0.5 and 1 or -1
+	for x = 3, W - 2 do
+		local k = key(x, ZM)
+		if not reserved[k] then
+			S.belts[k] = { dx = dx, dz = 0 }
+			reserved[k] = true
+		end
+	end
+	if W >= 21 then
+		local dz = math.random() < 0.5 and 1 or -1
+		for z = 3, H - 2 do
+			local k = key(XM, z)
+			if not reserved[k] then
+				S.belts[k] = { dx = 0, dz = dz }
+				reserved[k] = true
+			end
+		end
+	end
+end
+
+local function planToggles(reserved)
+	local XM, ZM = Grid.XM, Grid.ZM
+	local cells = { { XM - 2, ZM - 2 }, { XM + 2, ZM - 2 }, { XM - 2, ZM + 2 }, { XM + 2, ZM + 2 } }
+	if Grid.W >= 21 then
+		for _, c in ipairs({ { XM - 4, ZM - 2 }, { XM + 4, ZM - 2 }, { XM - 4, ZM + 2 }, { XM + 4, ZM + 2 } }) do
+			cells[#cells + 1] = c
+		end
+	end
+	for _, c in ipairs(cells) do
+		local k = key(c[1], c[2])
+		if Grid.inBounds(c[1], c[2]) and not isFixedWall(c[1], c[2]) and not reserved[k] then
+			S.toggles[k] = { x = c[1], z = c[2], up = false, closed = false }
+			reserved[k] = true
+		end
+	end
+end
+
+----------------------------------------------------------------------
+-- Onderdelen bouwen
+----------------------------------------------------------------------
+local function buildWarp(x, z, pair)
+	local color = WARP_COLORS[pair] or WARP_COLORS[1]
+	local pad = makePart(Vector3.new(0.3, T - 0.6, T - 0.6), Grid.cellPos(x, z) + Vector3.new(0, 0.15, 0), color, Enum.Material.Neon)
+	pad.Name = "Warp"
+	pad.Shape = Enum.PartType.Cylinder
+	pad.Orientation = Vector3.new(0, 0, 90)
+	pad.CanCollide = false
+	pad.CanQuery = false
+	local att = Instance.new("Attachment")
+	att.Parent = pad
+	local pe = Instance.new("ParticleEmitter")
+	pe.Rate = 18
+	pe.Lifetime = NumberRange.new(0.6, 1)
+	pe.Speed = NumberRange.new(4, 6)
+	pe.EmissionDirection = Enum.NormalId.Right -- door de draaiing is dit "omhoog"
+	pe.SpreadAngle = Vector2.new(15, 15)
+	pe.LightEmission = 1
+	pe.Color = ColorSequence.new(color)
+	pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
+	pe.Parent = att
+end
+
+local function buildBelt(x, z, b)
+	local pos = Grid.cellPos(x, z)
+	local base = makePart(Vector3.new(T, 0.2, T), pos + Vector3.new(0, 0.1, 0), Color3.fromRGB(45, 45, 55), Enum.Material.DiamondPlate)
+	base.Name = "Belt"
+	base.CanCollide = false
+	base.CanQuery = false
+	-- een gloeiende streep die in de looprichting over de band schuift
+	local dir = Vector3.new(b.dx, 0, b.dz)
+	local across = b.dx ~= 0 and Vector3.new(0.4, 0.06, T - 0.6) or Vector3.new(T - 0.6, 0.06, 0.4)
+	for i = 0, 1 do
+		local stripe = makePart(across, pos + Vector3.new(0, 0.23, 0) - dir * (T / 2 - 0.3), Color3.fromRGB(255, 210, 60), Enum.Material.Neon)
+		stripe.Name = "BeltStripe"
+		stripe.CanCollide = false
+		stripe.CanQuery = false
+		local tween = TweenService:Create(stripe, TweenInfo.new(T / Config.BELT_SPEED, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), {
+			Position = pos + Vector3.new(0, 0.23, 0) + dir * (T / 2 - 0.3),
+		})
+		task.delay(i * (T / Config.BELT_SPEED) / 2, function()
+			if stripe.Parent then
+				tween:Play()
+			end
+		end)
+	end
+end
+
+local function toggleDownPos(x, z)
+	return Grid.cellPos(x, z) + Vector3.new(0, -T / 2 + 0.15, 0)
+end
+
+local function buildToggle(tg)
+	local p = makePart(Vector3.new(T - 0.1, T, T - 0.1), toggleDownPos(tg.x, tg.z), TOGGLE_COLOR, Enum.Material.Metal)
+	p.Name = "ToggleWall"
+	p.CanCollide = false
+	tg.part = p
+end
+
+function Arena.build(playerCount)
 	if S.arena then
 		S.arena:Destroy()
 	end
 	S.gen += 1
-	table.clear(S.terrain)
-	table.clear(S.crateParts)
-	table.clear(S.bombs)
-	table.clear(S.bombAt)
-	table.clear(S.powerups)
-	table.clear(S.flames)
+	for _, t in ipairs({ S.terrain, S.crateParts, S.bombs, S.bombAt, S.powerups, S.flames, S.warps, S.belts, S.toggles }) do
+		table.clear(t)
+	end
+
+	local W, H = Grid.sizeFor(playerCount)
+	Grid.setSize(W, H)
 
 	S.arena = Instance.new("Folder")
 	S.arena.Name = "Arena"
 	S.arena.Parent = workspace
 
+	-- welke bijzondere vakjes doen deze ronde mee?
+	local reserved = {}
+	local features = {}
+	for name, chance in pairs(Config.FEATURE_CHANCE) do
+		features[name] = math.random() < chance
+	end
+	if features.Warps then
+		planWarps(reserved)
+	end
+	if features.Belts then
+		planBelts(reserved)
+	end
+	if features.Toggles then
+		planToggles(reserved)
+	end
+
+	local spawns = Grid.spawns()
 	local light = Color3.fromRGB(96, 168, 90)
 	local dark = Color3.fromRGB(80, 148, 76)
 	for x = 1, W do
 		for z = 1, H do
+			local k = key(x, z)
 			local floor = makePart(Vector3.new(T, 1, T), Grid.cellPos(x, z) + Vector3.new(0, -0.5, 0), (x + z) % 2 == 0 and light or dark, Enum.Material.Grass)
 			floor.Name = "Floor"
-			if x % 2 == 0 and z % 2 == 0 then
-				S.terrain[Grid.key(x, z)] = "wall"
+			if isFixedWall(x, z) then
+				S.terrain[k] = "wall"
 				local w = makePart(Vector3.new(T, T, T), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), WALL_COLOR, Enum.Material.Concrete)
 				w.Name = "Wall"
-			elseif not isSafe(x, z) and math.random() < Config.CRATE_CHANCE then
-				S.terrain[Grid.key(x, z)] = "crate"
+			elseif not reserved[k] and not isSafe(x, z, spawns) and math.random() < Config.CRATE_CHANCE then
+				S.terrain[k] = "crate"
 				local c = makePart(Vector3.new(T - 0.1, T - 0.1, T - 0.1), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), Color3.fromRGB(176, 124, 70), Enum.Material.WoodPlanks)
 				c.Name = "Crate"
-				S.crateParts[Grid.key(x, z)] = c
+				S.crateParts[k] = c
 			end
 		end
+	end
+
+	for k, w in pairs(S.warps) do
+		local x, z = Grid.unkey(k)
+		buildWarp(x, z, w.pair)
+	end
+	local beltList = {}
+	for k, b in pairs(S.belts) do
+		local x, z = Grid.unkey(k)
+		buildBelt(x, z, b)
+		beltList[#beltList + 1] = string.format("%d,%d,%d,%d", x, z, b.dx, b.dz)
+	end
+	for _, tg in pairs(S.toggles) do
+		buildToggle(tg)
 	end
 
 	-- buitenrand
@@ -466,6 +698,23 @@ function Arena.build()
 	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, hh + T / 2), rim, Enum.Material.Slate)
 	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(-hw - T / 2, T, 0), rim, Enum.Material.Slate)
 	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(hw + T / 2, T, 0), rim, Enum.Material.Slate)
+
+	-- de clients hebben de grootte en de banden nodig (camera, hoekhulp, meegeduwd worden)
+	Net.set("ArenaW", W)
+	Net.set("ArenaH", H)
+	Net.set("Belts", table.concat(beltList, ";"))
+
+	local names = {}
+	if features.Warps then
+		names[#names + 1] = "🌀 warpzones"
+	end
+	if features.Belts then
+		names[#names + 1] = "➡️ lopende banden"
+	end
+	if features.Toggles then
+		names[#names + 1] = "🧱 schakelmuren"
+	end
+	return names
 end
 
 local function removeCratePart(k)
@@ -478,7 +727,7 @@ local function removeCratePart(k)
 end
 
 function Arena.destroyCrate(x, z)
-	local k = Grid.key(x, z)
+	local k = key(x, z)
 	S.terrain[k] = nil
 	removeCratePart(k)
 	if math.random() < Config.DROP_CHANCE then
@@ -492,10 +741,66 @@ function Arena.destroyCrate(x, z)
 	end
 end
 
--- Sudden death: er valt een muurblok op dit vakje. Geeft false als er al een muur stond.
+----------------------------------------------------------------------
+-- Schakelmuren: om de TOGGLE_INTERVAL seconden allemaal omhoog of omlaag.
+-- Omhoog gaat alleen als er niemand (en geen bom) op het vakje staat.
+----------------------------------------------------------------------
+local togglePhaseUp, nextToggle = false, 0
+
+function Arena.resetToggles(now)
+	togglePhaseUp = false
+	nextToggle = now + Config.TOGGLE_INTERVAL
+end
+
+function Arena.updateToggles(now)
+	if next(S.toggles) == nil then
+		return
+	end
+	if now >= nextToggle then
+		togglePhaseUp = not togglePhaseUp
+		nextToggle = now + Config.TOGGLE_INTERVAL
+		for _, tg in pairs(S.toggles) do
+			tg.pending = true
+		end
+	end
+	for k, tg in pairs(S.toggles) do
+		if tg.pending and not tg.closed then
+			if togglePhaseUp then
+				-- wachten tot het vakje leeg is
+				if not S.bombAt[k] and not S.playerOnCell(Grid.cellOf, tg.x, tg.z) then
+					tg.pending = false
+					tg.up = true
+					S.terrain[k] = "wall"
+					Powerups.remove(k)
+					tg.part.CanCollide = true
+					TweenService:Create(tg.part, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+						Position = Grid.cellPos(tg.x, tg.z) + Vector3.new(0, T / 2, 0),
+					}):Play()
+					Sounds.play("Toggle", tg.part.Position)
+				end
+			else
+				tg.pending = false
+				if tg.up then
+					tg.up = false
+					S.terrain[k] = nil
+					tg.part.CanCollide = false
+					TweenService:Create(tg.part, TweenInfo.new(0.3), { Position = toggleDownPos(tg.x, tg.z) }):Play()
+				end
+			end
+		end
+	end
+end
+
+-- Sudden death: er valt een muurblok op dit vakje. Geeft false als er al een vaste muur stond.
 function Arena.closeCell(x, z)
-	local k = Grid.key(x, z)
-	if S.terrain[k] == "wall" then
+	local k = key(x, z)
+	local tg = S.toggles[k]
+	if tg then
+		tg.closed = true
+		if tg.part then
+			tg.part:Destroy()
+		end
+	elseif S.terrain[k] == "wall" then
 		return false
 	end
 	if S.terrain[k] == "crate" then
@@ -834,16 +1139,38 @@ function Bombs.throw(player)
 	end
 end
 
-local function kick(bomb, dx, dz)
+-- Laat een bom glijden. oneStep = true: maar één vakje (lopende band)
+local function startSlide(bomb, dx, dz, speed, oneStep)
 	if not cellFree(bomb.x + dx, bomb.z + dz, true) then
-		return
+		return false
 	end
 	bomb.state = "sliding"
 	bomb.dx, bomb.dz = dx, dz
 	bomb.slide = 0
+	bomb.slideSpeed = speed
+	bomb.oneStep = oneStep
 	bomb.solid = false
 	bomb.part.CanCollide = false
-	Sounds.play("Kick", bomb.part.Position)
+	return true
+end
+
+local function kick(bomb, dx, dz)
+	if startSlide(bomb, dx, dz, Config.KICK_SPEED, false) then
+		Sounds.play("Kick", bomb.part.Position)
+	end
+end
+
+-- Komt een glijdende bom op een warp, dan komt hij bij de andere warp uit
+local function warpBomb(bomb)
+	local w = S.warps[key(bomb.x, bomb.z)]
+	if w and not S.terrain[key(w.x, w.z)] and cellFree(w.x, w.z, false) then
+		if S.bombAt[key(bomb.x, bomb.z)] == bomb then
+			S.bombAt[key(bomb.x, bomb.z)] = nil
+		end
+		bomb.x, bomb.z = w.x, w.z
+		S.bombAt[key(w.x, w.z)] = bomb
+		Sounds.play("Warp", Grid.cellPos(w.x, w.z))
+	end
 end
 
 -- Spelers met de schopschoen die tegen een bom aan lopen, schoppen hem weg
@@ -903,7 +1230,7 @@ function Bombs.update(now, dt)
 					end
 				end
 			elseif bomb.state == "sliding" then
-				bomb.slide += Config.KICK_SPEED * dt
+				bomb.slide += bomb.slideSpeed * dt
 				while bomb.slide >= 1 and bomb.state == "sliding" do
 					bomb.slide -= 1
 					local k = key(bomb.x, bomb.z)
@@ -912,7 +1239,8 @@ function Bombs.update(now, dt)
 					end
 					bomb.x, bomb.z = bomb.x + bomb.dx, bomb.z + bomb.dz
 					S.bombAt[key(bomb.x, bomb.z)] = bomb
-					if not cellFree(bomb.x + bomb.dx, bomb.z + bomb.dz, true) then
+					warpBomb(bomb)
+					if bomb.oneStep or not cellFree(bomb.x + bomb.dx, bomb.z + bomb.dz, true) then
 						bomb.state = "placed"
 						bomb.slide = 0
 					end
@@ -924,6 +1252,10 @@ function Bombs.update(now, dt)
 				else
 					bomb.part.Position = here + BOMB_Y
 				end
+			elseif bomb.state == "placed" and S.belts[key(bomb.x, bomb.z)] then
+				-- een bom op een lopende band schuift steeds een vakje mee
+				local b = S.belts[key(bomb.x, bomb.z)]
+				startSlide(bomb, b.dx, b.dz, Config.BELT_BOMB_SPEED, true)
 			elseif bomb.state == "placed" and not bomb.solid then
 				-- pas massief als niemand er meer op staat (zo kun je van je eigen bom af lopen)
 				local clear = true
@@ -977,21 +1309,54 @@ return Bombs
 ]]></ProtectedString>
 </Properties></Item><Item class="ModuleScript" referent="RBX3"><Properties>
 <string name="Name">Grid</string>
-<ProtectedString name="Source"><![CDATA[-- Rooster-hulpfuncties: van vakje naar positie en terug
+<ProtectedString name="Source"><![CDATA[-- Rooster-hulpfuncties: van vakje naar positie en terug.
+-- De grootte kan per ronde veranderen (Grid.setSize), afhankelijk van het aantal spelers.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
 
-local T, W, H = Config.TILE, Config.WIDTH, Config.HEIGHT
-local originX = -(W - 1) * T / 2
-local originZ = -(H - 1) * T / 2
+local T = Config.TILE
 
 local Grid = {
 	T = T,
-	W = W,
-	H = H,
+	W = 13,
+	H = 13,
 	DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } },
-	CORNERS = { { 1, 1 }, { W, H }, { W, 1 }, { 1, H } },
 }
+
+local originX, originZ = 0, 0
+
+-- Dichtstbijzijnde oneven getal (in oneven rijen/kolommen staan nooit vaste muren)
+function Grid.odd(v)
+	return math.floor((v - 1) / 2 + 0.5) * 2 + 1
+end
+
+function Grid.setSize(w, h)
+	Grid.W, Grid.H = w, h
+	originX = -(w - 1) * T / 2
+	originZ = -(h - 1) * T / 2
+	Grid.XM, Grid.ZM = Grid.odd((w + 1) / 2), Grid.odd((h + 1) / 2) -- midden
+end
+Grid.setSize(Grid.W, Grid.H)
+
+-- Kies de arenagrootte bij het aantal spelers
+function Grid.sizeFor(playerCount)
+	for _, row in ipairs(Config.ARENA_SIZES) do
+		if playerCount <= row.players then
+			return row.w, row.h
+		end
+	end
+	local last = Config.ARENA_SIZES[#Config.ARENA_SIZES]
+	return last.w, last.h
+end
+
+-- Startplekken: eerst de vier hoeken, daarna het midden van elke rand
+function Grid.spawns()
+	local W, H, XM, ZM = Grid.W, Grid.H, Grid.XM, Grid.ZM
+	return {
+		{ 1, 1 }, { W, H }, { W, 1 }, { 1, H },
+		{ XM, 1 }, { XM, H }, { 1, ZM }, { W, ZM },
+	}
+end
 
 function Grid.cellPos(x, z)
 	return Vector3.new(originX + (x - 1) * T, 0, originZ + (z - 1) * T)
@@ -1005,8 +1370,12 @@ function Grid.key(x, z)
 	return x * 100 + z
 end
 
+function Grid.unkey(k)
+	return k // 100, k % 100
+end
+
 function Grid.inBounds(x, z)
-	return x >= 1 and x <= W and z >= 1 and z <= H
+	return x >= 1 and x <= Grid.W and z >= 1 and z <= Grid.H
 end
 
 -- Hoofdrichting (één as) van een vector, bijv. kijk- of looprichting
@@ -1020,7 +1389,7 @@ end
 -- Alle vakjes in een spiraal van buiten naar binnen (voor sudden death)
 function Grid.spiral()
 	local out = {}
-	local x1, z1, x2, z2 = 1, 1, W, H
+	local x1, z1, x2, z2 = 1, 1, Grid.W, Grid.H
 	while x1 <= x2 and z1 <= z2 do
 		for x = x1, x2 do
 			out[#out + 1] = { x, z1 }
@@ -1315,6 +1684,9 @@ local State = {
 	bombAt = {}, -- key -> bom die op dat vakje ligt
 	powerups = {}, -- key -> { part, kind }
 	flames = {}, -- lijst van { cells = {key=true}, expires }
+	warps = {}, -- key -> { x, z } van de andere warp
+	belts = {}, -- key -> { dx, dz }
+	toggles = {}, -- key -> { x, z, part, up, closed }
 	stats = {}, -- player -> stats
 	alive = {}, -- player -> true
 	roundPlayers = {}, -- spelers die deze ronde meedoen
@@ -1371,25 +1743,101 @@ local camera = workspace.CurrentCamera
 camera.FieldOfView = 40
 
 local T = Config.TILE
-local originX = -(Config.WIDTH - 1) * T / 2
-local originZ = -(Config.HEIGHT - 1) * T / 2
+
+-- Het veld verandert per ronde van grootte; de server zet de maat op de remotes-map
+local arenaW, arenaH = 13, 13
+local originX, originZ = 0, 0
+local belts = {} -- key -> { dx, dz }
+
+local function readArena()
+	arenaW = remotes:GetAttribute("ArenaW") or arenaW
+	arenaH = remotes:GetAttribute("ArenaH") or arenaH
+	originX = -(arenaW - 1) * T / 2
+	originZ = -(arenaH - 1) * T / 2
+	table.clear(belts)
+	for entry in string.gmatch(remotes:GetAttribute("Belts") or "", "[^;]+") do
+		local x, z, dx, dz = string.match(entry, "(-?%d+),(-?%d+),(-?%d+),(-?%d+)")
+		if x then
+			belts[tonumber(x) * 100 + tonumber(z)] = { dx = tonumber(dx), dz = tonumber(dz) }
+		end
+	end
+end
+for _, name in ipairs({ "ArenaW", "ArenaH", "Belts" }) do
+	remotes:GetAttributeChangedSignal(name):Connect(readArena)
+end
+readArena()
+
+local function cellOf(p)
+	return math.floor((p.X - originX) / T + 0.5) + 1, math.floor((p.Z - originZ) / T + 0.5) + 1
+end
 
 -- Geluid "hoor" je vanuit het midden van de arena, niet vanuit de hoge camera
 SoundService:SetListener(Enum.ListenerType.CFrame, CFrame.new(0, 20, 0))
 
 ----------------------------------------------------------------------
--- Camera: vast bovenaanzicht, past zich aan het scherm aan
+-- Camera: van boven. Leef je, dan volgt hij jouw speler; ben je af
+-- (of kijk je mee), dan zie je het hele veld.
 ----------------------------------------------------------------------
-RunService:BindToRenderStep("BombCamera", Enum.RenderPriority.Camera.Value + 1, function()
-	camera.CameraType = Enum.CameraType.Scriptable
+local camFocus = Vector3.zero
+local camDist = 100
+
+local function distFor(cellsW, cellsH, margin)
 	local vp = camera.ViewportSize
 	local aspect = math.max(vp.X, 1) / math.max(vp.Y, 1)
 	local t = math.tan(math.rad(camera.FieldOfView / 2))
-	local halfH = (Config.HEIGHT * T) / 2 + 8
-	local halfW = (Config.WIDTH * T) / 2 + 5
-	local dist = math.max(halfH / t, halfW / (t * aspect)) * 1.05
+	local halfH = (cellsH * T) / 2 + margin
+	local halfW = (cellsW * T) / 2 + margin
+	return math.max(halfH / t, halfW / (t * aspect)) * 1.05, halfW, halfH
+end
+
+RunService:BindToRenderStep("BombCamera", Enum.RenderPriority.Camera.Value + 1, function(dt)
+	camera.CameraType = Enum.CameraType.Scriptable
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local following = Config.CAMERA_FOLLOW and player:GetAttribute("Alive") and root and hum and hum.Health > 0
+
+	local targetFocus, targetDist
+	if following then
+		local viewW = math.min(Config.CAMERA_VIEW_W, arenaW)
+		local viewH = math.min(Config.CAMERA_VIEW_H, arenaH)
+		local dist, halfW, halfH = distFor(viewW, viewH, 2)
+		-- niet verder schuiven dan de rand van het veld
+		local maxX = math.max(0, (arenaW * T) / 2 + T - halfW)
+		local maxZ = math.max(0, (arenaH * T) / 2 + T - halfH)
+		local p = root.Position
+		targetFocus = Vector3.new(math.clamp(p.X, -maxX, maxX), 0, math.clamp(p.Z, -maxZ, maxZ))
+		targetDist = dist
+	else
+		targetFocus = Vector3.zero
+		targetDist = distFor(arenaW, arenaH, 6)
+	end
+
+	local a = 1 - math.exp(-Config.CAMERA_SMOOTH * dt)
+	camFocus = camFocus:Lerp(targetFocus, a)
+	camDist += (targetDist - camDist) * a
 	-- kleine kanteling zodat "omhoog" op het scherm = noord (-Z) blijft
-	camera.CFrame = CFrame.lookAt(Vector3.new(0, dist, dist * 0.22), Vector3.new(0, 0, 0))
+	camera.CFrame = CFrame.lookAt(camFocus + Vector3.new(0, camDist, camDist * 0.22), camFocus)
+end)
+
+----------------------------------------------------------------------
+-- Lopende banden: duwen je eigen speler mee
+----------------------------------------------------------------------
+RunService.Heartbeat:Connect(function(dt)
+	if next(belts) == nil then
+		return
+	end
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not hum or not root or hum.Health <= 0 then
+		return
+	end
+	local x, z = cellOf(root.Position)
+	local b = belts[x * 100 + z]
+	if b then
+		root.CFrame += Vector3.new(b.dx, 0, b.dz) * Config.BELT_SPEED * dt
+	end
 end)
 
 ----------------------------------------------------------------------

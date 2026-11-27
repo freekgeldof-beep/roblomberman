@@ -19,25 +19,101 @@ local camera = workspace.CurrentCamera
 camera.FieldOfView = 40
 
 local T = Config.TILE
-local originX = -(Config.WIDTH - 1) * T / 2
-local originZ = -(Config.HEIGHT - 1) * T / 2
+
+-- Het veld verandert per ronde van grootte; de server zet de maat op de remotes-map
+local arenaW, arenaH = 13, 13
+local originX, originZ = 0, 0
+local belts = {} -- key -> { dx, dz }
+
+local function readArena()
+	arenaW = remotes:GetAttribute("ArenaW") or arenaW
+	arenaH = remotes:GetAttribute("ArenaH") or arenaH
+	originX = -(arenaW - 1) * T / 2
+	originZ = -(arenaH - 1) * T / 2
+	table.clear(belts)
+	for entry in string.gmatch(remotes:GetAttribute("Belts") or "", "[^;]+") do
+		local x, z, dx, dz = string.match(entry, "(-?%d+),(-?%d+),(-?%d+),(-?%d+)")
+		if x then
+			belts[tonumber(x) * 100 + tonumber(z)] = { dx = tonumber(dx), dz = tonumber(dz) }
+		end
+	end
+end
+for _, name in ipairs({ "ArenaW", "ArenaH", "Belts" }) do
+	remotes:GetAttributeChangedSignal(name):Connect(readArena)
+end
+readArena()
+
+local function cellOf(p)
+	return math.floor((p.X - originX) / T + 0.5) + 1, math.floor((p.Z - originZ) / T + 0.5) + 1
+end
 
 -- Geluid "hoor" je vanuit het midden van de arena, niet vanuit de hoge camera
 SoundService:SetListener(Enum.ListenerType.CFrame, CFrame.new(0, 20, 0))
 
 ----------------------------------------------------------------------
--- Camera: vast bovenaanzicht, past zich aan het scherm aan
+-- Camera: van boven. Leef je, dan volgt hij jouw speler; ben je af
+-- (of kijk je mee), dan zie je het hele veld.
 ----------------------------------------------------------------------
-RunService:BindToRenderStep("BombCamera", Enum.RenderPriority.Camera.Value + 1, function()
-	camera.CameraType = Enum.CameraType.Scriptable
+local camFocus = Vector3.zero
+local camDist = 100
+
+local function distFor(cellsW, cellsH, margin)
 	local vp = camera.ViewportSize
 	local aspect = math.max(vp.X, 1) / math.max(vp.Y, 1)
 	local t = math.tan(math.rad(camera.FieldOfView / 2))
-	local halfH = (Config.HEIGHT * T) / 2 + 8
-	local halfW = (Config.WIDTH * T) / 2 + 5
-	local dist = math.max(halfH / t, halfW / (t * aspect)) * 1.05
+	local halfH = (cellsH * T) / 2 + margin
+	local halfW = (cellsW * T) / 2 + margin
+	return math.max(halfH / t, halfW / (t * aspect)) * 1.05, halfW, halfH
+end
+
+RunService:BindToRenderStep("BombCamera", Enum.RenderPriority.Camera.Value + 1, function(dt)
+	camera.CameraType = Enum.CameraType.Scriptable
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local following = Config.CAMERA_FOLLOW and player:GetAttribute("Alive") and root and hum and hum.Health > 0
+
+	local targetFocus, targetDist
+	if following then
+		local viewW = math.min(Config.CAMERA_VIEW_W, arenaW)
+		local viewH = math.min(Config.CAMERA_VIEW_H, arenaH)
+		local dist, halfW, halfH = distFor(viewW, viewH, 2)
+		-- niet verder schuiven dan de rand van het veld
+		local maxX = math.max(0, (arenaW * T) / 2 + T - halfW)
+		local maxZ = math.max(0, (arenaH * T) / 2 + T - halfH)
+		local p = root.Position
+		targetFocus = Vector3.new(math.clamp(p.X, -maxX, maxX), 0, math.clamp(p.Z, -maxZ, maxZ))
+		targetDist = dist
+	else
+		targetFocus = Vector3.zero
+		targetDist = distFor(arenaW, arenaH, 6)
+	end
+
+	local a = 1 - math.exp(-Config.CAMERA_SMOOTH * dt)
+	camFocus = camFocus:Lerp(targetFocus, a)
+	camDist += (targetDist - camDist) * a
 	-- kleine kanteling zodat "omhoog" op het scherm = noord (-Z) blijft
-	camera.CFrame = CFrame.lookAt(Vector3.new(0, dist, dist * 0.22), Vector3.new(0, 0, 0))
+	camera.CFrame = CFrame.lookAt(camFocus + Vector3.new(0, camDist, camDist * 0.22), camFocus)
+end)
+
+----------------------------------------------------------------------
+-- Lopende banden: duwen je eigen speler mee
+----------------------------------------------------------------------
+RunService.Heartbeat:Connect(function(dt)
+	if next(belts) == nil then
+		return
+	end
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not hum or not root or hum.Health <= 0 then
+		return
+	end
+	local x, z = cellOf(root.Position)
+	local b = belts[x * 100 + z]
+	if b then
+		root.CFrame += Vector3.new(b.dx, 0, b.dz) * Config.BELT_SPEED * dt
+	end
 end)
 
 ----------------------------------------------------------------------

@@ -310,16 +310,38 @@ function Bombs.throw(player)
 	end
 end
 
-local function kick(bomb, dx, dz)
+-- Laat een bom glijden. oneStep = true: maar één vakje (lopende band)
+local function startSlide(bomb, dx, dz, speed, oneStep)
 	if not cellFree(bomb.x + dx, bomb.z + dz, true) then
-		return
+		return false
 	end
 	bomb.state = "sliding"
 	bomb.dx, bomb.dz = dx, dz
 	bomb.slide = 0
+	bomb.slideSpeed = speed
+	bomb.oneStep = oneStep
 	bomb.solid = false
 	bomb.part.CanCollide = false
-	Sounds.play("Kick", bomb.part.Position)
+	return true
+end
+
+local function kick(bomb, dx, dz)
+	if startSlide(bomb, dx, dz, Config.KICK_SPEED, false) then
+		Sounds.play("Kick", bomb.part.Position)
+	end
+end
+
+-- Komt een glijdende bom op een warp, dan komt hij bij de andere warp uit
+local function warpBomb(bomb)
+	local w = S.warps[key(bomb.x, bomb.z)]
+	if w and not S.terrain[key(w.x, w.z)] and cellFree(w.x, w.z, false) then
+		if S.bombAt[key(bomb.x, bomb.z)] == bomb then
+			S.bombAt[key(bomb.x, bomb.z)] = nil
+		end
+		bomb.x, bomb.z = w.x, w.z
+		S.bombAt[key(w.x, w.z)] = bomb
+		Sounds.play("Warp", Grid.cellPos(w.x, w.z))
+	end
 end
 
 -- Spelers met de schopschoen die tegen een bom aan lopen, schoppen hem weg
@@ -379,7 +401,7 @@ function Bombs.update(now, dt)
 					end
 				end
 			elseif bomb.state == "sliding" then
-				bomb.slide += Config.KICK_SPEED * dt
+				bomb.slide += bomb.slideSpeed * dt
 				while bomb.slide >= 1 and bomb.state == "sliding" do
 					bomb.slide -= 1
 					local k = key(bomb.x, bomb.z)
@@ -388,7 +410,8 @@ function Bombs.update(now, dt)
 					end
 					bomb.x, bomb.z = bomb.x + bomb.dx, bomb.z + bomb.dz
 					S.bombAt[key(bomb.x, bomb.z)] = bomb
-					if not cellFree(bomb.x + bomb.dx, bomb.z + bomb.dz, true) then
+					warpBomb(bomb)
+					if bomb.oneStep or not cellFree(bomb.x + bomb.dx, bomb.z + bomb.dz, true) then
 						bomb.state = "placed"
 						bomb.slide = 0
 					end
@@ -400,6 +423,10 @@ function Bombs.update(now, dt)
 				else
 					bomb.part.Position = here + BOMB_Y
 				end
+			elseif bomb.state == "placed" and S.belts[key(bomb.x, bomb.z)] then
+				-- een bom op een lopende band schuift steeds een vakje mee
+				local b = S.belts[key(bomb.x, bomb.z)]
+				startSlide(bomb, b.dx, b.dz, Config.BELT_BOMB_SPEED, true)
 			elseif bomb.state == "placed" and not bomb.solid then
 				-- pas massief als niemand er meer op staat (zo kun je van je eigen bom af lopen)
 				local clear = true
