@@ -153,6 +153,51 @@ function Powerups.spawn(x, z, kind)
 	S.powerups[Grid.key(x, z)] = { part = p, kind = kind }
 end
 
+-- When someone dies, the goodies they collected are scattered over free cells
+function Powerups.scatter(s)
+	local kinds = {}
+	local function add(kind, n)
+		for _ = 1, n do
+			kinds[#kinds + 1] = kind
+		end
+	end
+	add("Bomb", s.maxBombs - Config.START_BOMBS)
+	add("Range", s.range - Config.START_RANGE)
+	add("Speed", math.floor((s.speed - Config.START_SPEED) / Config.SPEED_STEP))
+	add("Pierce", s.pierce and 1 or 0)
+	add("Throw", s.throw and 1 or 0)
+	add("Kick", s.kick and 1 or 0)
+	add("Punch", s.punch and 1 or 0)
+	if #kinds == 0 then
+		return
+	end
+	-- shuffle and cap, so a max-fire player doesn't flood the arena
+	for i = #kinds, 2, -1 do
+		local j = math.random(i)
+		kinds[i], kinds[j] = kinds[j], kinds[i]
+	end
+	local myGen = S.gen
+	task.delay(Config.FLAME_TIME + 0.1, function()
+		if myGen ~= S.gen then
+			return
+		end
+		local free = {}
+		for x = 1, Grid.W do
+			for z = 1, Grid.H do
+				local k = Grid.key(x, z)
+				if not S.terrain[k] and not S.bombAt[k] and not S.powerups[k] and not S.warps[k]
+					and not S.playerOnCell(Grid.cellOf, x, z) then
+					free[#free + 1] = { x, z }
+				end
+			end
+		end
+		for i = 1, math.min(#kinds, Config.DEATH_DROP_MAX, #free) do
+			local c = table.remove(free, math.random(#free))
+			Powerups.spawn(c[1], c[2], kinds[i])
+		end
+	end)
+end
+
 -- Every frame: pick up goodies and let curses run out
 function Powerups.update(now)
 	for plr in pairs(S.alive) do

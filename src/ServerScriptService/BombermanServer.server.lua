@@ -166,6 +166,9 @@ local function onDeath(player)
 	if s and s.held then
 		Bombs.explode(s.held)
 	end
+	if s then
+		Powerups.scatter(s)
+	end
 	Net.announce(msg("you_out"), 3, false, player)
 	checkRound()
 end

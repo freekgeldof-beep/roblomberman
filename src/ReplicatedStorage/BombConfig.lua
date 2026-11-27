@@ -13,6 +13,7 @@ return {
 
 	CRATE_CHANCE = 0.75, -- chance that a free cell becomes a crate
 	DROP_CHANCE = 0.4, -- chance that a broken crate drops a goodie
+	DEATH_DROP_MAX = 8, -- most goodies a dead player scatters over the arena
 
 	FUSE = 2.6, -- seconds until a bomb explodes
 	FLAME_TIME = 0.6, -- how long the fire stays

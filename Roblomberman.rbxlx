@@ -19,6 +19,7 @@ return {
 
 	CRATE_CHANCE = 0.75, -- chance that a free cell becomes a crate
 	DROP_CHANCE = 0.4, -- chance that a broken crate drops a goodie
+	DEATH_DROP_MAX = 8, -- most goodies a dead player scatters over the arena
 
 	FUSE = 2.6, -- seconds until a bomb explodes
 	FLAME_TIME = 0.6, -- how long the fire stays
@@ -1185,6 +1186,9 @@ local function onDeath(player)
 	local s = S.stats[player]
 	if s and s.held then
 		Bombs.explode(s.held)
+	end
+	if s then
+		Powerups.scatter(s)
 	end
 	Net.announce(msg("you_out"), 3, false, player)
 	checkRound()
@@ -3107,6 +3111,51 @@ function Powerups.spawn(x, z, kind)
 		Position = Grid.cellPos(x, z) + Vector3.new(0, 2.8, 0),
 	}):Play()
 	S.powerups[Grid.key(x, z)] = { part = p, kind = kind }
+end
+
+-- When someone dies, the goodies they collected are scattered over free cells
+function Powerups.scatter(s)
+	local kinds = {}
+	local function add(kind, n)
+		for _ = 1, n do
+			kinds[#kinds + 1] = kind
+		end
+	end
+	add("Bomb", s.maxBombs - Config.START_BOMBS)
+	add("Range", s.range - Config.START_RANGE)
+	add("Speed", math.floor((s.speed - Config.START_SPEED) / Config.SPEED_STEP))
+	add("Pierce", s.pierce and 1 or 0)
+	add("Throw", s.throw and 1 or 0)
+	add("Kick", s.kick and 1 or 0)
+	add("Punch", s.punch and 1 or 0)
+	if #kinds == 0 then
+		return
+	end
+	-- shuffle and cap, so a max-fire player doesn't flood the arena
+	for i = #kinds, 2, -1 do
+		local j = math.random(i)
+		kinds[i], kinds[j] = kinds[j], kinds[i]
+	end
+	local myGen = S.gen
+	task.delay(Config.FLAME_TIME + 0.1, function()
+		if myGen ~= S.gen then
+			return
+		end
+		local free = {}
+		for x = 1, Grid.W do
+			for z = 1, Grid.H do
+				local k = Grid.key(x, z)
+				if not S.terrain[k] and not S.bombAt[k] and not S.powerups[k] and not S.warps[k]
+					and not S.playerOnCell(Grid.cellOf, x, z) then
+					free[#free + 1] = { x, z }
+				end
+			end
+		end
+		for i = 1, math.min(#kinds, Config.DEATH_DROP_MAX, #free) do
+			local c = table.remove(free, math.random(#free))
+			Powerups.spawn(c[1], c[2], kinds[i])
+		end
+	end)
 end
 
 -- Every frame: pick up goodies and let curses run out

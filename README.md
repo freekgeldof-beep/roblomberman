@@ -26,6 +26,8 @@ Op mobiel staan 💣- en 🧤-knoppen op het scherm.
 
 Vuur laat andere bommen meteen ontploffen (kettingreacties).
 
+Gaat iemand dood, dan vallen al zijn verzamelde goodies verspreid over lege vakjes in het veld (maximaal 8).
+
 ## Het veld
 
 - Het veld **groeit mee** met het aantal spelers: 13×13 vakjes voor 1–2 spelers, 17×13 voor 3–4, 21×17 voor 5–6 en 25×17 voor 7–8.
