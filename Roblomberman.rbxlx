@@ -1,15 +1,15 @@
 <roblox version="4">
-<Item class="Workspace" referent="RBX8"><Properties><string name="Name">Workspace</string></Properties></Item>
-<Item class="Lighting" referent="RBX9"><Properties><string name="Name">Lighting</string></Properties></Item>
-<Item class="Players" referent="RBX10"><Properties><string name="Name">Players</string></Properties></Item>
-<Item class="ReplicatedStorage" referent="RBX12"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="ModuleScript" referent="RBX11"><Properties>
+<Item class="Workspace" referent="RBX9"><Properties><string name="Name">Workspace</string></Properties></Item>
+<Item class="Lighting" referent="RBX10"><Properties><string name="Name">Lighting</string></Properties></Item>
+<Item class="Players" referent="RBX11"><Properties><string name="Name">Players</string></Properties></Item>
+<Item class="ReplicatedStorage" referent="RBX13"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="ModuleScript" referent="RBX12"><Properties>
 <string name="Name">BombConfig</string>
-<ProtectedString name="Source"><![CDATA[-- Gedeelde instellingen (server + client)
+<ProtectedString name="Source"><![CDATA[-- Shared settings (server + client)
 return {
-	TILE = 4, -- grootte van één vakje in studs
+	TILE = 4, -- size of one cell in studs
 
-	-- Het veld groeit mee met het aantal spelers (breedte/hoogte in vakjes, altijd oneven).
-	-- Met 1 + een veelvoud van 4 (13, 17, 21, 25) ligt het midden mooi symmetrisch.
+	-- The arena grows with the number of players (width/height in cells, always odd).
+	-- With 1 + a multiple of 4 (13, 17, 21, 25) the middle is nicely symmetrical.
 	ARENA_SIZES = {
 		{ players = 2, w = 13, h = 13 },
 		{ players = 4, w = 17, h = 13 },
@@ -17,14 +17,14 @@ return {
 		{ players = 8, w = 25, h = 17 },
 	},
 
-	CRATE_CHANCE = 0.75, -- kans dat een vrij vakje een kist wordt
-	DROP_CHANCE = 0.4, -- kans dat een kapotte kist een goodie laat vallen
+	CRATE_CHANCE = 0.75, -- chance that a free cell becomes a crate
+	DROP_CHANCE = 0.4, -- chance that a broken crate drops a goodie
 
-	FUSE = 2.6, -- seconden tot een bom ontploft
-	FLAME_TIME = 0.6, -- hoe lang het vuur blijft
-	THROW_DISTANCE = 3, -- minimale gooi-afstand in vakjes
-	THROW_SPEED = 30, -- studs per seconde
-	KICK_SPEED = 9, -- vakjes per seconde voor een geschopte bom
+	FUSE = 2.6, -- seconds until a bomb explodes
+	FLAME_TIME = 0.6, -- how long the fire stays
+	THROW_DISTANCE = 3, -- minimum throw distance in cells
+	THROW_SPEED = 30, -- studs per second
+	KICK_SPEED = 9, -- cells per second for a kicked bomb
 
 	START_BOMBS = 1,
 	START_RANGE = 2,
@@ -34,50 +34,55 @@ return {
 	MAX_SPEED = 26,
 	SPEED_STEP = 2,
 
-	CURSE_TIME = 10, -- seconden dat een 💀-vloek duurt
-	CURSE_SLOW_SPEED = 8, -- loopsnelheid met de "traag"-vloek
+	CURSE_TIME = 10, -- seconds a 💀 curse lasts
+	CURSE_SLOW_SPEED = 8, -- walk speed with the "slow" curse
 
-	ROUND_TIME = 150, -- seconden tot sudden death begint
-	SUDDEN_DEATH_STEP = 0.35, -- seconden tussen twee vallende muurblokken
+	ROUND_TIME = 150, -- seconds until sudden death starts
+	SUDDEN_DEATH_STEP = 0.35, -- seconds between two falling wall blocks
 
-	CORNER_ASSIST = true, -- automatisch de gang in schuiven bij hoeken
-	CORNER_TOLERANCE = 0.7, -- hoe ver (in vakjes) je naast een gang mag staan
+	CORNER_ASSIST = true, -- slide into the corridor automatically at corners
+	CORNER_TOLERANCE = 0.7, -- how far (in cells) you may be off a corridor
 
-	INTERMISSION = 7, -- seconden tussen rondes (eindscherm)
+	INTERMISSION = 7, -- seconds between rounds (scoreboard)
 	MAX_PLAYERS = 8,
 
-	-- Camera: volgt je eigen speler van boven. Zo veel vakjes zie je ongeveer om je heen.
+	-- Computer opponents: bots fill the round up to this many players (0 = no bots)
+	BOT_FILL = 4,
+	BOT_THINK = 0.25, -- seconds between bot decisions (lower = faster, harder)
+	BOT_AGGRESSION = 0.6, -- chance a bot drops a bomb when it has a good spot (0..1)
+
+	-- Camera: follows your own player from above. Roughly this many cells are visible.
 	CAMERA_FOLLOW = true,
 	CAMERA_VIEW_W = 15,
 	CAMERA_VIEW_H = 11,
-	CAMERA_SMOOTH = 6, -- hoe snel de camera bijdraait (hoger = strakker)
+	CAMERA_SMOOTH = 6, -- how fast the camera catches up (higher = tighter)
 
-	-- Bijzondere vakjes. Elke ronde wordt per soort gegooid of hij meedoet,
-	-- zodat elke ronde anders is. Zet een kans op 1 om hem altijd aan te hebben, of op 0 voor uit.
+	-- Special cells. Every round each kind is rolled separately,
+	-- so every round is different. Set a chance to 1 to always have it, or 0 to turn it off.
 	FEATURE_CHANCE = {
-		Warps = 0.75, -- warpzones: stap erop en je komt bij de andere uit
-		Belts = 0.75, -- lopende banden: duwen spelers en bommen mee
-		Toggles = 0.6, -- schakelmuren: gaan om de paar seconden omhoog en omlaag
+		Warps = 0.75, -- warp zones: step on one and come out at the other
+		Belts = 0.75, -- conveyor belts: push players and bombs along
+		Toggles = 0.6, -- switch walls: go up and down every few seconds
 	},
-	WARP_COOLDOWN = 0.6, -- seconden voordat een warp je weer kan wegsturen
-	BELT_SPEED = 7, -- studs per seconde dat een band je meeneemt
-	BELT_BOMB_SPEED = 3, -- vakjes per seconde voor een bom op een band
-	TOGGLE_INTERVAL = 6, -- seconden tussen omhoog en omlaag van schakelmuren
+	WARP_COOLDOWN = 0.6, -- seconds before a warp can send you again
+	BELT_SPEED = 7, -- studs per second a belt carries you
+	BELT_BOMB_SPEED = 3, -- cells per second for a bomb on a belt
+	TOGGLE_INTERVAL = 6, -- seconds between switch walls going up and down
 
 	PLAYER_COLORS = {
-		{ name = "Rood", color = Color3.fromRGB(235, 70, 70) },
-		{ name = "Blauw", color = Color3.fromRGB(70, 140, 255) },
-		{ name = "Geel", color = Color3.fromRGB(255, 210, 60) },
-		{ name = "Groen", color = Color3.fromRGB(80, 210, 100) },
-		{ name = "Paars", color = Color3.fromRGB(170, 90, 240) },
-		{ name = "Oranje", color = Color3.fromRGB(255, 140, 40) },
-		{ name = "Roze", color = Color3.fromRGB(255, 120, 200) },
-		{ name = "Cyaan", color = Color3.fromRGB(60, 220, 230) },
+		{ name = "color_1", color = Color3.fromRGB(235, 70, 70) },
+		{ name = "color_2", color = Color3.fromRGB(70, 140, 255) },
+		{ name = "color_3", color = Color3.fromRGB(255, 210, 60) },
+		{ name = "color_4", color = Color3.fromRGB(80, 210, 100) },
+		{ name = "color_5", color = Color3.fromRGB(170, 90, 240) },
+		{ name = "color_6", color = Color3.fromRGB(255, 140, 40) },
+		{ name = "color_7", color = Color3.fromRGB(255, 120, 200) },
+		{ name = "color_8", color = Color3.fromRGB(60, 220, 230) },
 	},
 
-	-- Geluiden. Vervang een id door een eigen geluid uit de Creator Store
-	-- ("rbxassetid://123..."), of zet hem op "" om dat geluid uit te zetten.
-	-- De ontploffing zelf komt van Roblox' eigen Explosion-effect.
+	-- Sounds. Replace an id with your own sound from the Creator Store
+	-- ("rbxassetid://123..."), or set it to "" to turn that sound off.
+	-- The explosion itself uses Roblox's own Explosion effect.
 	SOUNDS = {
 		Place = { id = "rbxasset://sounds/button.wav", volume = 0.6 },
 		Throw = { id = "rbxasset://sounds/swoosh.wav", volume = 0.7 },
@@ -91,22 +96,25 @@ return {
 		Win = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.9, speed = 1.5 },
 		Warp = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.7, speed = 0.8 },
 		Toggle = { id = "rbxasset://sounds/action_jump_land.mp3", volume = 0.4, speed = 1.3 },
-		Explosion = { id = "", volume = 0.8 }, -- optioneel: extra ontploffingsgeluid
+		Explosion = { id = "", volume = 0.8 }, -- optional: extra explosion sound
 	},
 }
 ]]></ProtectedString>
 </Properties></Item></Item>
-<Item class="ServerScriptService" referent="RBX15"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Script" referent="RBX13"><Properties>
+<Item class="ServerScriptService" referent="RBX16"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Script" referent="RBX14"><Properties>
 <string name="Name">BombermanServer</string>
-<ProtectedString name="Source"><![CDATA[-- Roblomberman: server (rondes en spelers)
--- De rest van de spelregels staat in de modules in de map "Bomberman":
---   Grid      rooster-hulpfuncties
---   State     gedeelde toestand
---   Net       RemoteEvents en ronde-info voor de clients
---   Sounds    geluiden
---   Powerups  goodies en vloeken
---   Arena     arena bouwen, kisten, sudden-death-muren
---   Bombs     bommen leggen/gooien/schoppen/ontploffen en vuur
+<ProtectedString name="Source"><![CDATA[-- Roblomberman: server entry point (rounds and players).
+-- The game rules live in the modules in the "Bomberman" folder:
+--   Grid      grid helpers (cell <-> position, arena size)
+--   State     shared game state
+--   Net       RemoteEvents and round info for the clients
+--   Sounds    sound effects
+--   Powerups  goodies and curses
+--   Arena     building the arena, crates, warps, belts, switch walls, sudden death
+--   Bombs     placing / throwing / kicking / exploding bombs and fire
+--   Bots      computer opponents
+-- Player-facing text is never built here: we send message keys (see
+-- ReplicatedStorage.Lang) and each client translates them.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -121,6 +129,7 @@ local Sounds = require(Modules:WaitForChild("Sounds"))
 local Powerups = require(Modules:WaitForChild("Powerups"))
 local Arena = require(Modules:WaitForChild("Arena"))
 local Bombs = require(Modules:WaitForChild("Bombs"))
+local Bots = require(Modules:WaitForChild("Bots"))
 
 Players.CharacterAutoLoads = false
 
@@ -133,8 +142,12 @@ end)
 
 local roundNumber = 0
 
+local function msg(k, a)
+	return { k = k, a = a }
+end
+
 ----------------------------------------------------------------------
--- Rondes
+-- Rounds
 ----------------------------------------------------------------------
 local function updateAliveCount()
 	local n = 0
@@ -152,16 +165,20 @@ end
 
 local function getWins(plr)
 	local ls = plr:FindFirstChild("leaderstats")
-	local w = ls and ls:FindFirstChild("Wins")
-	return w
+	return ls and ls:FindFirstChild("Wins")
 end
 
+-- Scoreboard for everyone: real players plus the bots that have played
 local function sendResult(winner, title)
+	local everyone = Players:GetPlayers()
+	for _, bot in ipairs(Bots.all()) do
+		everyone[#everyone + 1] = bot
+	end
 	local rows = {}
-	for _, plr in ipairs(Players:GetPlayers()) do
+	for _, plr in ipairs(everyone) do
 		local w = getWins(plr)
 		rows[#rows + 1] = {
-			name = plr.DisplayName,
+			name = S.nameOf(plr),
 			wins = w and w.Value or 0,
 			color = plr:GetAttribute("Color"),
 			winner = plr == winner,
@@ -189,10 +206,10 @@ local function endRound(winner, reason)
 		if w then
 			w.Value += 1
 		end
-		title = "🏆 " .. winner.DisplayName .. " wint ronde " .. roundNumber .. "!"
+		title = msg("win_round", { name = S.nameOf(winner), n = roundNumber })
 		Sounds.play("Win")
 	else
-		title = reason or "Gelijkspel!"
+		title = reason or msg("draw")
 	end
 	sendResult(winner, title)
 end
@@ -202,20 +219,33 @@ local function checkRound()
 		return
 	end
 	local count, last = 0, nil
+	local humansInRound, humansAlive = 0, 0
 	for plr in pairs(S.alive) do
 		count += 1
 		last = plr
+		if not S.isBot(plr) then
+			humansAlive += 1
+		end
 	end
+	for _, plr in ipairs(S.roundPlayers) do
+		if not S.isBot(plr) then
+			humansInRound += 1
+		end
+	end
+
 	if #S.roundPlayers >= 2 then
 		if count <= 1 then
 			endRound(last)
+		elseif humansInRound > 0 and humansAlive == 0 then
+			-- all real players are out: don't make them watch the bots for ages
+			endRound(nil, msg("bots_win"))
 		end
 	elseif count == 0 then
-		endRound(nil, "Oef, je bent af!")
+		endRound(nil, msg("solo_out"))
 	elseif #Players:GetPlayers() >= 2 then
-		-- Iemand speelde alleen en er is een tweede speler bij gekomen:
-		-- stop de oefenronde zodat iedereen samen kan beginnen.
-		endRound(nil, "Er doet iemand mee! Nieuwe ronde…")
+		-- someone was practising alone and a second player joined:
+		-- stop the practice round so everyone can start together
+		endRound(nil, msg("new_player"))
 	end
 end
 
@@ -230,7 +260,7 @@ local function onDeath(player)
 	if s and s.held then
 		Bombs.explode(s.held)
 	end
-	Net.announce("💀 Je bent af – kijk mee!", 3, false, player)
+	Net.announce(msg("you_out"), 3, false, player)
 	checkRound()
 end
 
@@ -241,16 +271,16 @@ local function killOnCell(x, z)
 		if hum then
 			hum.Health = 0
 		end
-		onDeath(plr) -- direct, zodat playerOnCell hem niet nog eens vindt
+		onDeath(plr) -- right away, so playerOnCell won't find them again
 		plr = S.playerOnCell(Grid.cellOf, x, z)
 	end
 end
 
--- Na de rondetijd valt de arena van buiten naar binnen dicht
+-- After the round time the arena closes in from the outside
 local function suddenDeath()
 	local myGen = S.gen
 	Net.set("SuddenDeath", true)
-	Net.announce("☠️ SUDDEN DEATH! De muren komen eraan!", 3)
+	Net.announce(msg("sudden_death"), 3)
 	for _, c in ipairs(Grid.spiral()) do
 		if S.roundState ~= "playing" or S.gen ~= myGen then
 			return
@@ -261,7 +291,7 @@ local function suddenDeath()
 			if b then
 				Bombs.explode(b)
 			end
-			task.wait(0.2) -- het blok valt nog
+			task.wait(0.2) -- the block is still falling
 			if S.roundState ~= "playing" or S.gen ~= myGen then
 				return
 			end
@@ -282,47 +312,64 @@ local function colorCharacter(char, color)
 end
 
 local function startRound()
-	local list = Players:GetPlayers()
-	local features = Arena.build(math.min(#list, Config.MAX_PLAYERS))
+	-- who plays: real players first, then bots to fill up to BOT_FILL
+	local humans = Players:GetPlayers()
+	local participants = {}
+	for i = 1, math.min(#humans, Config.MAX_PLAYERS) do
+		participants[i] = humans[i]
+	end
+	for i = Config.MAX_PLAYERS + 1, #humans do
+		Net.announce(msg("arena_full"), 4, true, humans[i])
+	end
+	local botCount = math.max(0, math.min(Config.BOT_FILL, Config.MAX_PLAYERS) - #participants)
+	for _, bot in ipairs(Bots.get(botCount)) do
+		participants[#participants + 1] = bot
+	end
+
+	local features = Arena.build(#participants)
 	Arena.resetToggles(os.clock())
+	Bots.clearCharacters()
 	table.clear(S.alive)
 	table.clear(S.stats)
-	S.roundPlayers = {}
+	S.roundPlayers = participants
 	roundNumber += 1
 	Net.set("Round", roundNumber)
 
-	for _, plr in ipairs(list) do
+	for _, plr in ipairs(humans) do
 		plr:SetAttribute("InRound", false)
 		plr:SetAttribute("Alive", false)
-		plr:SetAttribute("Color", nil)
-		plr:SetAttribute("ColorName", nil)
-		plr:SetAttribute("Curse", nil)
 	end
-	for i = 1, math.min(#list, Config.MAX_PLAYERS) do
-		S.roundPlayers[i] = list[i]
-	end
-	for i = Config.MAX_PLAYERS + 1, #list do
-		Net.announce("De arena is vol – je doet mee in een volgende ronde.", 4, true, list[i])
+	for _, plr in ipairs(participants) do
+		for _, attr in ipairs({ "Color", "ColorName", "Curse" }) do
+			plr:SetAttribute(attr, nil)
+		end
 	end
 
-	for i, plr in ipairs(S.roundPlayers) do
+	local spawns = Grid.spawns()
+	for i, plr in ipairs(participants) do
 		S.stats[plr] = Powerups.newStats()
-		local ok = pcall(function()
-			plr:LoadCharacter()
-		end)
-		local char = ok and plr.Character
+		local c = spawns[i]
+		local spawnCf = CFrame.new(Grid.cellPos(c[1], c[2]) + Vector3.new(0, 3, 0))
+		local char
+		if S.isBot(plr) then
+			char = Bots.spawn(plr, spawnCf)
+		else
+			local ok = pcall(function()
+				plr:LoadCharacter()
+			end)
+			char = ok and plr.Character
+		end
 		if char then
 			local root = char:WaitForChild("HumanoidRootPart", 5)
 			local hum = char:WaitForChild("Humanoid", 5)
 			if root and hum then
-				local c = Grid.spawns()[i]
 				local pc = Config.PLAYER_COLORS[i]
-				char:PivotTo(CFrame.new(Grid.cellPos(c[1], c[2]) + Vector3.new(0, 3, 0)))
+				char:PivotTo(spawnCf)
 				hum.UseJumpPower = true
 				hum.JumpPower = 0
 				colorCharacter(char, pc.color)
 				plr:SetAttribute("Color", pc.color)
-				plr:SetAttribute("ColorName", pc.name)
+				plr:SetAttribute("ColorName", pc.name) -- a Lang key, e.g. "color_1"
 				plr:SetAttribute("InRound", true)
 				setAlive(plr, true)
 				S.stats[plr].invulUntil = os.clock() + 2
@@ -341,13 +388,13 @@ local function startRound()
 	Net.set("RoundEndsAt", workspace:GetServerTimeNow() + Config.ROUND_TIME)
 	Net.set("SuddenDeath", false)
 	Net.set("State", "playing")
-	Net.announce("GO! 💣", 1.5)
+	Net.announce(msg("go"), 1.5)
+	Sounds.play("Go")
 	if #features > 0 then
 		task.delay(1.6, function()
-			Net.announce("Deze ronde: " .. table.concat(features, ", "), 3, true)
+			Net.announce(msg("this_round", { list = features }), 3, true)
 		end)
 	end
-	Sounds.play("Go")
 	checkRound()
 end
 
@@ -359,7 +406,7 @@ task.spawn(function()
 		S.roundState = "lobby"
 		Net.set("State", "lobby")
 		for i = 3, 1, -1 do
-			Net.announce("Ronde begint over " .. i .. "…", 1)
+			Net.announce(msg("countdown", { n = i }), 1)
 			Sounds.play("Beep")
 			task.wait(1)
 		end
@@ -379,7 +426,7 @@ task.spawn(function()
 end)
 
 ----------------------------------------------------------------------
--- Spelers
+-- Players
 ----------------------------------------------------------------------
 Players.PlayerAdded:Connect(function(plr)
 	local ls = Instance.new("Folder")
@@ -399,15 +446,15 @@ Players.PlayerRemoving:Connect(function(plr)
 	end
 	S.alive[plr] = nil
 	S.stats[plr] = nil
-	-- (de speler blijft in roundPlayers staan, zodat de laatste overblijver wint)
+	-- (the player stays in roundPlayers, so the last one standing still wins)
 	updateAliveCount()
 	checkRound()
 end)
 
 ----------------------------------------------------------------------
--- Hoofdlus
+-- Main loop
 ----------------------------------------------------------------------
--- Warpzones: wie (bijna) in het midden van een warp staat, komt bij de andere uit
+-- Warp zones: whoever stands (almost) in the middle of a warp comes out at the other one
 local function updateWarps(now)
 	if next(S.warps) == nil then
 		return
@@ -415,18 +462,18 @@ local function updateWarps(now)
 	for plr in pairs(S.alive) do
 		local s = S.stats[plr]
 		local root = S.getRoot(plr)
-		if s and root then
+		local char = S.charOf(plr)
+		if s and root and char then
 			local x, z = Grid.cellOf(root.Position)
 			local k = Grid.key(x, z)
 			if s.warpCell and s.warpCell ~= k then
-				s.warpCell = nil -- van de warp af gestapt: hij werkt weer
+				s.warpCell = nil -- stepped off the warp: it works again
 			end
 			local w = S.warps[k]
 			if w and not s.warpCell and now >= (s.warpReady or 0) and not S.terrain[k] and not S.terrain[Grid.key(w.x, w.z)] then
 				local c = Grid.cellPos(x, z)
 				local off = Vector3.new(root.Position.X - c.X, 0, root.Position.Z - c.Z)
 				if off.Magnitude < Grid.T * 0.3 then
-					local char = plr.Character
 					local look = root.CFrame.LookVector
 					local dest = Grid.cellPos(w.x, w.z) + Vector3.new(0, root.Position.Y, 0)
 					char:PivotTo(CFrame.lookAt(dest, dest + Vector3.new(look.X, 0, look.Z)))
@@ -446,8 +493,9 @@ RunService.Heartbeat:Connect(function(dt)
 	Powerups.update(now)
 	Arena.updateToggles(now)
 	updateWarps(now)
+	Bots.update(now, dt)
 
-	-- 💩-vloek: legt vanzelf bommen
+	-- 💩 curse: drops bombs by itself
 	for plr in pairs(S.alive) do
 		local s = S.stats[plr]
 		if s and s.curse == "autobomb" then
@@ -456,10 +504,10 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 end)
 ]]></ProtectedString>
-</Properties></Item><Item class="Folder" referent="RBX14"><Properties><string name="Name">Bomberman</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties>
+</Properties></Item><Item class="Folder" referent="RBX15"><Properties><string name="Name">Bomberman</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties>
 <string name="Name">Arena</string>
-<ProtectedString name="Source"><![CDATA[-- Arena: vloer, muren, kisten, bijzondere vakjes (warps, banden, schakelmuren)
--- en de muren die vallen tijdens sudden death
+<ProtectedString name="Source"><![CDATA[-- Arena: floor, walls, crates, special cells (warps, belts, switch walls),
+-- the random theme of each round and the walls that drop during sudden death
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -474,11 +522,56 @@ local T = Grid.T
 local key = Grid.key
 local Arena = {}
 
-local WALL_COLOR = Color3.fromRGB(110, 110, 120)
+local Lighting = game:GetService("Lighting")
+
+-- Themes: each round picks one at random so the arena doesn't always look the same
+local THEMES = {
+	{
+		name = "Grass",
+		floor = { Color3.fromRGB(96, 168, 90), Color3.fromRGB(80, 148, 76) }, floorMat = Enum.Material.Grass,
+		wall = Color3.fromRGB(110, 110, 120), wallMat = Enum.Material.Concrete,
+		crate = Color3.fromRGB(176, 124, 70), crateMat = Enum.Material.WoodPlanks,
+		rim = Color3.fromRGB(60, 60, 72), rimMat = Enum.Material.Slate,
+		clock = 14, ambient = Color3.fromRGB(110, 110, 110),
+	},
+	{
+		name = "Desert",
+		floor = { Color3.fromRGB(226, 196, 132), Color3.fromRGB(212, 180, 116) }, floorMat = Enum.Material.Sand,
+		wall = Color3.fromRGB(176, 120, 80), wallMat = Enum.Material.Sandstone,
+		crate = Color3.fromRGB(120, 160, 80), crateMat = Enum.Material.Grass, -- cactus-coloured bushes
+		rim = Color3.fromRGB(150, 100, 64), rimMat = Enum.Material.Sandstone,
+		clock = 16.5, ambient = Color3.fromRGB(140, 120, 100),
+	},
+	{
+		name = "Snow",
+		floor = { Color3.fromRGB(235, 242, 250), Color3.fromRGB(215, 228, 242) }, floorMat = Enum.Material.Snow,
+		wall = Color3.fromRGB(140, 190, 230), wallMat = Enum.Material.Ice,
+		crate = Color3.fromRGB(190, 120, 80), crateMat = Enum.Material.WoodPlanks,
+		rim = Color3.fromRGB(110, 150, 190), rimMat = Enum.Material.Glacier,
+		clock = 12, ambient = Color3.fromRGB(150, 160, 180),
+	},
+	{
+		name = "Lava",
+		floor = { Color3.fromRGB(70, 60, 60), Color3.fromRGB(58, 50, 50) }, floorMat = Enum.Material.Basalt,
+		wall = Color3.fromRGB(40, 36, 40), wallMat = Enum.Material.Basalt,
+		crate = Color3.fromRGB(200, 80, 30), crateMat = Enum.Material.CrackedLava,
+		rim = Color3.fromRGB(255, 90, 20), rimMat = Enum.Material.Neon,
+		clock = 19, ambient = Color3.fromRGB(120, 70, 60),
+	},
+	{
+		name = "Space",
+		floor = { Color3.fromRGB(40, 36, 70), Color3.fromRGB(32, 28, 58) }, floorMat = Enum.Material.SmoothPlastic,
+		wall = Color3.fromRGB(120, 110, 200), wallMat = Enum.Material.Metal,
+		crate = Color3.fromRGB(80, 200, 220), crateMat = Enum.Material.Glass,
+		rim = Color3.fromRGB(170, 80, 255), rimMat = Enum.Material.Neon,
+		clock = 0, ambient = Color3.fromRGB(110, 100, 150),
+	},
+}
+local theme = THEMES[1]
 local WARP_COLORS = { Color3.fromRGB(170, 80, 255), Color3.fromRGB(40, 220, 255) }
 local TOGGLE_COLOR = Color3.fromRGB(230, 90, 60)
 
--- Vakjes rond de startplekken blijven leeg, zodat je niet vast zit
+-- Cells around the spawn points stay empty so nobody starts boxed in
 local function isSafe(x, z, spawns)
 	for _, c in ipairs(spawns) do
 		local ax, az = math.abs(x - c[1]), math.abs(z - c[2])
@@ -505,7 +598,7 @@ local function makePart(size, pos, color, material)
 end
 
 ----------------------------------------------------------------------
--- Bijzondere vakjes kiezen (houden rekening met de veldgrootte)
+-- Planning the special cells (they scale with the arena size)
 ----------------------------------------------------------------------
 local function planWarps(reserved)
 	local W, H = Grid.W, Grid.H
@@ -525,7 +618,7 @@ end
 
 local function planBelts(reserved)
 	local W, H, XM, ZM = Grid.W, Grid.H, Grid.XM, Grid.ZM
-	-- één band door de middelste rij, en in grote velden ook één door de middelste kolom
+	-- one belt through the middle row, and in big arenas one through the middle column too
 	local dx = math.random() < 0.5 and 1 or -1
 	for x = 3, W - 2 do
 		local k = key(x, ZM)
@@ -564,7 +657,7 @@ local function planToggles(reserved)
 end
 
 ----------------------------------------------------------------------
--- Onderdelen bouwen
+-- Building the parts
 ----------------------------------------------------------------------
 local function buildWarp(x, z, pair)
 	local color = WARP_COLORS[pair] or WARP_COLORS[1]
@@ -580,7 +673,7 @@ local function buildWarp(x, z, pair)
 	pe.Rate = 18
 	pe.Lifetime = NumberRange.new(0.6, 1)
 	pe.Speed = NumberRange.new(4, 6)
-	pe.EmissionDirection = Enum.NormalId.Right -- door de draaiing is dit "omhoog"
+	pe.EmissionDirection = Enum.NormalId.Right -- because of the rotation this is "up"
 	pe.SpreadAngle = Vector2.new(15, 15)
 	pe.LightEmission = 1
 	pe.Color = ColorSequence.new(color)
@@ -594,7 +687,7 @@ local function buildBelt(x, z, b)
 	base.Name = "Belt"
 	base.CanCollide = false
 	base.CanQuery = false
-	-- een gloeiende streep die in de looprichting over de band schuift
+	-- glowing stripes that slide over the belt in its direction
 	local dir = Vector3.new(b.dx, 0, b.dz)
 	local across = b.dx ~= 0 and Vector3.new(0.4, 0.06, T - 0.6) or Vector3.new(T - 0.6, 0.06, 0.4)
 	for i = 0, 1 do
@@ -636,11 +729,16 @@ function Arena.build(playerCount)
 	local W, H = Grid.sizeFor(playerCount)
 	Grid.setSize(W, H)
 
+	theme = THEMES[math.random(#THEMES)]
+	Lighting.ClockTime = theme.clock
+	Lighting.Ambient = theme.ambient
+	Lighting.OutdoorAmbient = theme.ambient
+
 	S.arena = Instance.new("Folder")
 	S.arena.Name = "Arena"
 	S.arena.Parent = workspace
 
-	-- welke bijzondere vakjes doen deze ronde mee?
+	-- pick a theme and the special cells for this round
 	local reserved = {}
 	local features = {}
 	for name, chance in pairs(Config.FEATURE_CHANCE) do
@@ -657,20 +755,19 @@ function Arena.build(playerCount)
 	end
 
 	local spawns = Grid.spawns()
-	local light = Color3.fromRGB(96, 168, 90)
-	local dark = Color3.fromRGB(80, 148, 76)
+	local light, dark = theme.floor[1], theme.floor[2]
 	for x = 1, W do
 		for z = 1, H do
 			local k = key(x, z)
-			local floor = makePart(Vector3.new(T, 1, T), Grid.cellPos(x, z) + Vector3.new(0, -0.5, 0), (x + z) % 2 == 0 and light or dark, Enum.Material.Grass)
+			local floor = makePart(Vector3.new(T, 1, T), Grid.cellPos(x, z) + Vector3.new(0, -0.5, 0), (x + z) % 2 == 0 and light or dark, theme.floorMat)
 			floor.Name = "Floor"
 			if isFixedWall(x, z) then
 				S.terrain[k] = "wall"
-				local w = makePart(Vector3.new(T, T, T), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), WALL_COLOR, Enum.Material.Concrete)
+				local w = makePart(Vector3.new(T, T, T), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), theme.wall, theme.wallMat)
 				w.Name = "Wall"
 			elseif not reserved[k] and not isSafe(x, z, spawns) and math.random() < Config.CRATE_CHANCE then
 				S.terrain[k] = "crate"
-				local c = makePart(Vector3.new(T - 0.1, T - 0.1, T - 0.1), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), Color3.fromRGB(176, 124, 70), Enum.Material.WoodPlanks)
+				local c = makePart(Vector3.new(T - 0.1, T - 0.1, T - 0.1), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), theme.crate, theme.crateMat)
 				c.Name = "Crate"
 				S.crateParts[k] = c
 			end
@@ -691,28 +788,28 @@ function Arena.build(playerCount)
 		buildToggle(tg)
 	end
 
-	-- buitenrand
+	-- outer rim
 	local hw, hh = W * T / 2, H * T / 2
-	local rim = Color3.fromRGB(60, 60, 72)
-	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, -hh - T / 2), rim, Enum.Material.Slate)
-	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, hh + T / 2), rim, Enum.Material.Slate)
-	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(-hw - T / 2, T, 0), rim, Enum.Material.Slate)
-	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(hw + T / 2, T, 0), rim, Enum.Material.Slate)
+	local rim, rimMat = theme.rim, theme.rimMat
+	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, -hh - T / 2), rim, rimMat)
+	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, hh + T / 2), rim, rimMat)
+	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(-hw - T / 2, T, 0), rim, rimMat)
+	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(hw + T / 2, T, 0), rim, rimMat)
 
-	-- de clients hebben de grootte en de banden nodig (camera, hoekhulp, meegeduwd worden)
+	-- clients need the size and the belts (camera, corner assist, being pushed)
 	Net.set("ArenaW", W)
 	Net.set("ArenaH", H)
 	Net.set("Belts", table.concat(beltList, ";"))
 
 	local names = {}
 	if features.Warps then
-		names[#names + 1] = "🌀 warpzones"
+		names[#names + 1] = { k = "feat_warps" }
 	end
 	if features.Belts then
-		names[#names + 1] = "➡️ lopende banden"
+		names[#names + 1] = { k = "feat_belts" }
 	end
 	if features.Toggles then
-		names[#names + 1] = "🧱 schakelmuren"
+		names[#names + 1] = { k = "feat_toggles" }
 	end
 	return names
 end
@@ -742,8 +839,8 @@ function Arena.destroyCrate(x, z)
 end
 
 ----------------------------------------------------------------------
--- Schakelmuren: om de TOGGLE_INTERVAL seconden allemaal omhoog of omlaag.
--- Omhoog gaat alleen als er niemand (en geen bom) op het vakje staat.
+-- Switch walls: every TOGGLE_INTERVAL seconds they all go up or down.
+-- A wall only rises when nobody (and no bomb) is on its cell.
 ----------------------------------------------------------------------
 local togglePhaseUp, nextToggle = false, 0
 
@@ -766,7 +863,7 @@ function Arena.updateToggles(now)
 	for k, tg in pairs(S.toggles) do
 		if tg.pending and not tg.closed then
 			if togglePhaseUp then
-				-- wachten tot het vakje leeg is
+				-- wait until the cell is empty
 				if not S.bombAt[k] and not S.playerOnCell(Grid.cellOf, tg.x, tg.z) then
 					tg.pending = false
 					tg.up = true
@@ -791,7 +888,7 @@ function Arena.updateToggles(now)
 	end
 end
 
--- Sudden death: er valt een muurblok op dit vakje. Geeft false als er al een vaste muur stond.
+-- Sudden death: drop a wall block on this cell. Returns false if a fixed wall was already there.
 function Arena.closeCell(x, z)
 	local k = key(x, z)
 	local tg = S.toggles[k]
@@ -827,7 +924,7 @@ return Arena
 ]]></ProtectedString>
 </Properties></Item><Item class="ModuleScript" referent="RBX2"><Properties>
 <string name="Name">Bombs</string>
-<ProtectedString name="Source"><![CDATA[-- Bommen: leggen, gooien, schoppen, ontploffen en het vuur
+<ProtectedString name="Source"><![CDATA[-- Bombs: placing, throwing, kicking, exploding, and the fire
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -845,10 +942,10 @@ local BOMB_Y = Vector3.new(0, 1.6, 0)
 local Bombs = {}
 
 ----------------------------------------------------------------------
--- Hulpjes
+-- Helpers
 ----------------------------------------------------------------------
 
--- Wordt dit vakje al gebruikt als landingsplek van een gegooide bom?
+-- Is this cell already the landing spot of a thrown bomb?
 local function isTargeted(x, z)
 	for b in pairs(S.bombs) do
 		if b.state == "flying" and b.x == x and b.z == z then
@@ -858,7 +955,7 @@ local function isTargeted(x, z)
 	return false
 end
 
--- Vrij vakje voor een bom: geen muur/kist, geen andere bom (en eventueel geen speler)
+-- Free cell for a bomb: no wall/crate, no other bomb (and optionally no player)
 local function cellFree(x, z, checkPlayers)
 	if not Grid.inBounds(x, z) then
 		return false
@@ -883,7 +980,7 @@ local function newBombPart()
 	p.Anchored = true
 	p.CanCollide = false
 
-	-- Alleen de mesh pulseert; de botsingsvorm van het onderdeel blijft gelijk
+	-- Only the mesh pulses; the part's collision shape stays the same
 	local mesh = Instance.new("SpecialMesh")
 	mesh.MeshType = Enum.MeshType.Sphere
 	mesh.Parent = p
@@ -953,7 +1050,7 @@ local function spawnFlame(x, z)
 end
 
 ----------------------------------------------------------------------
--- Ontploffen
+-- Exploding
 ----------------------------------------------------------------------
 function Bombs.explode(bomb)
 	if bomb.exploded then
@@ -978,7 +1075,7 @@ function Bombs.explode(bomb)
 	local center = bomb.part.Position
 	bomb.part:Destroy()
 
-	-- Roblox-ontploffing alleen voor beeld en geluid (doet geen schade)
+	-- Roblox explosion just for looks and sound (does no damage)
 	local e = Instance.new("Explosion")
 	e.Position = center
 	e.BlastRadius = 3
@@ -1033,7 +1130,7 @@ function Bombs.explode(bomb)
 end
 
 ----------------------------------------------------------------------
--- Acties van spelers
+-- Player actions
 ----------------------------------------------------------------------
 local function rateLimited(s)
 	if os.clock() - s.lastAction < 0.15 then
@@ -1043,7 +1140,7 @@ local function rateLimited(s)
 	return false
 end
 
--- force = true: voor de "vanzelf bommen"-vloek (geen limiet op tempo)
+-- force = true: for the "auto bombs" curse and bots (no rate limit)
 function Bombs.place(player, force)
 	local s = S.stats[player]
 	if not s or not S.alive[player] or S.roundState ~= "playing" then
@@ -1088,13 +1185,16 @@ function Bombs.throw(player)
 	if s.held then
 		local bomb = s.held
 		local tx, tz
-		for step = Config.THROW_DISTANCE, math.max(Grid.W, Grid.H) do
+		local wrapped = false
+		-- If the bomb flies over the outer wall, it comes back in on the opposite side
+		local size = dx ~= 0 and Grid.W or Grid.H
+		for step = Config.THROW_DISTANCE, size - 1 do
 			local cx, cz = sx + dx * step, sz + dz * step
-			if not Grid.inBounds(cx, cz) then
-				break
-			end
+			local w = not Grid.inBounds(cx, cz)
+			cx = (cx - 1) % Grid.W + 1
+			cz = (cz - 1) % Grid.H + 1
 			if cellFree(cx, cz, false) then
-				tx, tz = cx, cz
+				tx, tz, wrapped = cx, cz, w
 				break
 			end
 		end
@@ -1114,13 +1214,35 @@ function Bombs.throw(player)
 		bomb.holder = nil
 		bomb.state = "flying"
 		bomb.solid = false
-		-- Let op: tijdens de vlucht staat de bom NIET in bombAt, zodat vuur hem
-		-- niet in de lucht laat ontploffen. Hij landt op (x, z).
+		-- Note: while flying the bomb is NOT in bombAt, so fire can't
+		-- set it off in mid-air. It lands on (x, z).
 		bomb.x, bomb.z = tx, tz
-		bomb.from = bomb.part.Position
-		bomb.to = Grid.cellPos(tx, tz) + BOMB_Y
+		local from = bomb.part.Position
+		local to = Grid.cellPos(tx, tz) + BOMB_Y
+		if wrapped then
+			-- two pieces: to just past the edge, then from the opposite side to the target
+			local ex = dx > 0 and Grid.W + 1.5 or dx < 0 and -0.5 or 0
+			local ez = dz > 0 and Grid.H + 1.5 or dz < 0 and -0.5 or 0
+			local exitPos, entryPos
+			if dx ~= 0 then
+				exitPos = Vector3.new(Grid.cellPos(ex, sz).X, from.Y, from.Z)
+				entryPos = Vector3.new(Grid.cellPos(dx > 0 and -0.5 or Grid.W + 1.5, sz).X, to.Y, to.Z)
+			else
+				exitPos = Vector3.new(from.X, from.Y, Grid.cellPos(sx, ez).Z)
+				entryPos = Vector3.new(to.X, to.Y, Grid.cellPos(sx, dz > 0 and -0.5 or Grid.H + 1.5).Z)
+			end
+			bomb.path = { { from, exitPos, "up" }, { entryPos, to, "down" } }
+		else
+			bomb.path = { { from, to, "arc" } }
+		end
+		local len = 0
+		for _, seg in ipairs(bomb.path) do
+			len += (seg[2] - seg[1]).Magnitude
+		end
+		bomb.pathLen = len
 		bomb.t0 = os.clock()
-		bomb.dur = math.max(0.35, (bomb.to - bomb.from).Magnitude / Config.THROW_SPEED)
+		bomb.dur = math.max(0.35, len / Config.THROW_SPEED)
+		bomb.from = from
 		Sounds.play("Throw", bomb.from)
 	else
 		for _, c in ipairs({ { sx, sz }, { sx + dx, sz + dz } }) do
@@ -1139,7 +1261,7 @@ function Bombs.throw(player)
 	end
 end
 
--- Laat een bom glijden. oneStep = true: maar één vakje (lopende band)
+-- Make a bomb slide. oneStep = true: only one cell (conveyor belt)
 local function startSlide(bomb, dx, dz, speed, oneStep)
 	if not cellFree(bomb.x + dx, bomb.z + dz, true) then
 		return false
@@ -1160,7 +1282,7 @@ local function kick(bomb, dx, dz)
 	end
 end
 
--- Komt een glijdende bom op een warp, dan komt hij bij de andere warp uit
+-- A sliding bomb that reaches a warp comes out at the other warp
 local function warpBomb(bomb)
 	local w = S.warps[key(bomb.x, bomb.z)]
 	if w and not S.terrain[key(w.x, w.z)] and cellFree(w.x, w.z, false) then
@@ -1173,7 +1295,7 @@ local function warpBomb(bomb)
 	end
 end
 
--- Spelers met de schopschoen die tegen een bom aan lopen, schoppen hem weg
+-- Players with the kick shoe who walk into a bomb kick it away
 local function checkKicks()
 	for plr in pairs(S.alive) do
 		local s = S.stats[plr]
@@ -1196,7 +1318,7 @@ local function checkKicks()
 end
 
 ----------------------------------------------------------------------
--- Elke frame
+-- Every frame
 ----------------------------------------------------------------------
 function Bombs.update(now, dt)
 	checkKicks()
@@ -1218,11 +1340,29 @@ function Bombs.update(now, dt)
 				end
 			elseif bomb.state == "flying" then
 				local a = math.clamp((now - bomb.t0) / bomb.dur, 0, 1)
-				bomb.part.Position = bomb.from:Lerp(bomb.to, a) + Vector3.new(0, math.sin(math.pi * a) * 6, 0)
+				-- find which piece of the path the bomb is on
+				local dist = a * bomb.pathLen
+				for _, seg in ipairs(bomb.path) do
+					local segLen = math.max((seg[2] - seg[1]).Magnitude, 0.001)
+					if dist <= segLen or seg == bomb.path[#bomb.path] then
+						local f = math.clamp(dist / segLen, 0, 1)
+						local h
+						if seg[3] == "up" then
+							h = math.sin(math.pi / 2 * f) * 12 -- high over the outer wall
+						elseif seg[3] == "down" then
+							h = math.cos(math.pi / 2 * f) * 12
+						else
+							h = math.sin(math.pi * f) * 6
+						end
+						bomb.part.Position = seg[1]:Lerp(seg[2], f) + Vector3.new(0, h, 0)
+						break
+					end
+					dist -= segLen
+				end
 				if a >= 1 then
 					local k = key(bomb.x, bomb.z)
 					if S.terrain[k] or S.bombAt[k] then
-						-- er is intussen een muur of bom op de landingsplek gekomen
+						-- a wall or bomb appeared on the landing spot in the meantime
 						Bombs.explode(bomb)
 					else
 						S.bombAt[k] = bomb
@@ -1253,11 +1393,11 @@ function Bombs.update(now, dt)
 					bomb.part.Position = here + BOMB_Y
 				end
 			elseif bomb.state == "placed" and S.belts[key(bomb.x, bomb.z)] then
-				-- een bom op een lopende band schuift steeds een vakje mee
+				-- a bomb on a conveyor belt moves along one cell at a time
 				local b = S.belts[key(bomb.x, bomb.z)]
 				startSlide(bomb, b.dx, b.dz, Config.BELT_BOMB_SPEED, true)
 			elseif bomb.state == "placed" and not bomb.solid then
-				-- pas massief als niemand er meer op staat (zo kun je van je eigen bom af lopen)
+				-- only solid once nobody stands on it (so you can walk off your own bomb)
 				local clear = true
 				for plr in pairs(S.alive) do
 					local root = S.getRoot(plr)
@@ -1281,7 +1421,7 @@ function Bombs.update(now, dt)
 	end
 end
 
--- Vuur doodt spelers die erin staan
+-- Fire kills players standing in it
 function Bombs.updateFlames(now)
 	for i = #S.flames, 1, -1 do
 		local f = S.flames[i]
@@ -1308,9 +1448,341 @@ end
 return Bombs
 ]]></ProtectedString>
 </Properties></Item><Item class="ModuleScript" referent="RBX3"><Properties>
+<string name="Name">Bots</string>
+<ProtectedString name="Source"><![CDATA[-- Computer opponents ("bots").
+-- A bot is a Folder that stands in for a Player: it is used as the key in
+-- S.stats / S.alive, holds the same attributes (Color, Bombs, ...) and has a
+-- leaderstats folder with Wins. Its character model is kept in S.botChars.
+--
+-- Every BOT_THINK seconds each bot looks at the grid and picks one goal:
+--   1. standing in danger  -> walk to the nearest safe cell
+--   2. goodie nearby       -> pick it up
+--   3. enemy or crate in reach and an escape route exists -> place a bomb
+--   4. otherwise           -> walk towards the nearest enemy / crate
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
+local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+local Grid = require(script.Parent.Grid)
+local S = require(script.Parent.State)
+local Bombs = require(script.Parent.Bombs)
+
+local key = Grid.key
+local Bots = {}
+
+local folder = Instance.new("Folder")
+folder.Name = "Bots"
+folder.Parent = ServerStorage
+
+local botList = {} -- all bot Folders ever made, so their wins are kept between rounds
+local brain = {} -- bot -> { nextThink, target = {x, z} }
+
+local BOT_NAMES = { "Bommetje", "Knaller", "Vonk", "Lontje", "Boemboem", "Sissy", "Kaboom" }
+
+----------------------------------------------------------------------
+-- Creating bots
+----------------------------------------------------------------------
+function Bots.get(count)
+	while #botList < count do
+		local i = #botList + 1
+		local bot = Instance.new("Folder")
+		bot.Name = "Bot" .. i
+		bot:SetAttribute("DisplayName", "🤖 " .. (BOT_NAMES[i] or ("Bot " .. i)))
+		local ls = Instance.new("Folder")
+		ls.Name = "leaderstats"
+		local wins = Instance.new("IntValue")
+		wins.Name = "Wins"
+		wins.Parent = ls
+		ls.Parent = bot
+		bot.Parent = folder
+		botList[i] = bot
+	end
+	local out = {}
+	for i = 1, count do
+		out[i] = botList[i]
+	end
+	return out
+end
+
+function Bots.all()
+	return botList
+end
+
+-- Build a character model for the bot at the given CFrame
+function Bots.spawn(bot, cframe)
+	local old = S.botChars[bot]
+	if old then
+		old:Destroy()
+	end
+	local desc = Instance.new("HumanoidDescription")
+	local ok, model = pcall(function()
+		return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
+	end)
+	if not ok or not model then
+		warn("Roblomberman: could not create bot character", model)
+		return nil
+	end
+	model.Name = bot.Name
+	local hum = model:FindFirstChildOfClass("Humanoid")
+	hum.DisplayName = S.nameOf(bot)
+	hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+	model.Parent = workspace
+	model:PivotTo(cframe)
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if root then
+		root:SetNetworkOwner(nil) -- the server moves bots
+	end
+	S.botChars[bot] = model
+	brain[bot] = { nextThink = 0 }
+	return model
+end
+
+function Bots.clearCharacters()
+	for bot, model in pairs(S.botChars) do
+		model:Destroy()
+		S.botChars[bot] = nil
+	end
+	table.clear(brain)
+end
+
+----------------------------------------------------------------------
+-- Grid knowledge
+----------------------------------------------------------------------
+-- Cells a bomb at (x, z) would hit, same rules as Bombs.explode
+local function blastCells(x, z, range, pierce, out)
+	out[key(x, z)] = true
+	for _, d in ipairs(Grid.DIRS) do
+		for i = 1, range do
+			local cx, cz = x + d[1] * i, z + d[2] * i
+			if not Grid.inBounds(cx, cz) then
+				break
+			end
+			local t = S.terrain[key(cx, cz)]
+			if t == "wall" then
+				break
+			end
+			out[key(cx, cz)] = true
+			if (t == "crate" and not pierce) or S.bombAt[key(cx, cz)] then
+				break
+			end
+		end
+	end
+	return out
+end
+
+-- Every cell that is on fire or will be hit by a bomb that is already ticking
+local function dangerMap()
+	local danger = {}
+	for b in pairs(S.bombs) do
+		if not b.exploded then
+			blastCells(b.x, b.z, b.range, b.pierce, danger)
+		end
+	end
+	for _, f in ipairs(S.flames) do
+		for k in pairs(f.cells) do
+			danger[k] = true
+		end
+	end
+	return danger
+end
+
+local function fireNow()
+	local fire = {}
+	for _, f in ipairs(S.flames) do
+		for k in pairs(f.cells) do
+			fire[k] = true
+		end
+	end
+	return fire
+end
+
+local function walkable(x, z, fire)
+	if not Grid.inBounds(x, z) then
+		return false
+	end
+	local k = key(x, z)
+	return not S.terrain[k] and not S.bombAt[k] and not fire[k]
+end
+
+-- Breadth-first search from (sx, sz). goal(x, z, k) returns true for a target cell.
+-- avoid[k] = true marks cells we do not want to walk through.
+-- Returns the first step {x, z} and the path length, or nil.
+local function bfs(sx, sz, goal, fire, avoid, maxLen)
+	local start = key(sx, sz)
+	local prev = { [start] = false }
+	local dist = { [start] = 0 }
+	local queue = { { sx, sz } }
+	local head = 1
+	while head <= #queue do
+		local c = queue[head]
+		head += 1
+		local k = key(c[1], c[2])
+		if goal(c[1], c[2], k) then
+			if k == start then
+				return { sx, sz }, 0
+			end
+			-- walk back along the path to find the first step
+			local cur = k
+			while prev[cur].k ~= start do
+				cur = prev[cur].k
+			end
+			return prev[cur].c, dist[k]
+		end
+		if dist[k] < (maxLen or 99) then
+			for _, d in ipairs(Grid.DIRS) do
+				local nx, nz = c[1] + d[1], c[2] + d[2]
+				local nk = key(nx, nz)
+				if prev[nk] == nil and walkable(nx, nz, fire) and not (avoid and avoid[nk]) then
+					prev[nk] = { k = k, c = { nx, nz } }
+					dist[nk] = dist[k] + 1
+					queue[#queue + 1] = { nx, nz }
+				end
+			end
+		end
+	end
+	return nil
+end
+
+local function enemiesInLine(bot, x, z, range)
+	for _, d in ipairs(Grid.DIRS) do
+		for i = 1, range do
+			local cx, cz = x + d[1] * i, z + d[2] * i
+			if not Grid.inBounds(cx, cz) or S.terrain[key(cx, cz)] then
+				break
+			end
+			local p = S.playerOnCell(Grid.cellOf, cx, cz)
+			if p and p ~= bot then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+local function crateNext(x, z)
+	for _, d in ipairs(Grid.DIRS) do
+		if S.terrain[key(x + d[1], z + d[2])] == "crate" then
+			return true
+		end
+	end
+	return false
+end
+
+-- Would the bot still be able to run to safety after dropping a bomb here?
+local function canEscape(x, z, s, fire)
+	local danger = dangerMap()
+	blastCells(x, z, s.range, s.pierce, danger)
+	local steps = math.floor(Config.FUSE * s.speed / Grid.T) - 1
+	return bfs(x, z, function(_, _, k)
+		return not danger[k]
+	end, fire, nil, steps) ~= nil
+end
+
+----------------------------------------------------------------------
+-- Thinking and moving
+----------------------------------------------------------------------
+local function think(bot, s, root, hum)
+	local x, z = Grid.cellOf(root.Position)
+	local fire = fireNow()
+	local danger = dangerMap()
+	local mem = brain[bot]
+	mem.target = nil
+
+	-- 1. get out of danger
+	if danger[key(x, z)] then
+		local step = bfs(x, z, function(_, _, k)
+			return not danger[k]
+		end, fire, nil, 20)
+		mem.target = step
+		return
+	end
+
+	-- 2. goodies close by (skip the skull if we can help it)
+	local step = bfs(x, z, function(_, _, k)
+		local pu = S.powerups[k]
+		return pu ~= nil and pu.kind ~= "Skull"
+	end, fire, danger, 6)
+	if step then
+		mem.target = step
+		return
+	end
+
+	-- 3. drop a bomb next to a crate or an enemy, if we can get away
+	if s.active < s.maxBombs and s.curse ~= "nobombs" and math.random() < Config.BOT_AGGRESSION then
+		if (enemiesInLine(bot, x, z, s.range) or crateNext(x, z)) and canEscape(x, z, s, fire) then
+			Bombs.place(bot, true)
+			return -- next think will see the danger and run
+		end
+	end
+
+	-- 4. walk towards an enemy, or else towards a crate
+	step = bfs(x, z, function(cx, cz)
+		local p = S.playerOnCell(Grid.cellOf, cx, cz)
+		return (p ~= nil and p ~= bot) or (crateNext(cx, cz) and (cx ~= x or cz ~= z))
+	end, fire, danger, 40)
+	if step then
+		mem.target = step
+		return
+	end
+
+	-- 5. nothing to do: wander to a random safe neighbour
+	local options = {}
+	for _, d in ipairs(Grid.DIRS) do
+		local nx, nz = x + d[1], z + d[2]
+		if walkable(nx, nz, fire) and not danger[key(nx, nz)] then
+			options[#options + 1] = { nx, nz }
+		end
+	end
+	if #options > 0 then
+		mem.target = options[math.random(#options)]
+	end
+end
+
+function Bots.update(now, dt)
+	for bot, model in pairs(S.botChars) do
+		local s = S.stats[bot]
+		local hum = model:FindFirstChildOfClass("Humanoid")
+		local root = model:FindFirstChild("HumanoidRootPart")
+		local mem = brain[bot]
+		if S.alive[bot] and s and hum and root and mem and hum.Health > 0 and S.roundState == "playing" then
+			hum.WalkSpeed = s.curse == "slow" and Config.CURSE_SLOW_SPEED or s.speed
+			if now >= mem.nextThink then
+				mem.nextThink = now + Config.BOT_THINK * (0.8 + math.random() * 0.4)
+				think(bot, s, root, hum)
+			end
+			local t = mem.target
+			if t then
+				local goal = Grid.cellPos(t[1], t[2])
+				local flat = Vector3.new(goal.X - root.Position.X, 0, goal.Z - root.Position.Z)
+				if flat.Magnitude < 0.5 then
+					mem.target = nil
+					mem.nextThink = math.min(mem.nextThink, now) -- reached it: think again right away
+					hum:Move(Vector3.zero)
+				else
+					hum:Move(flat.Unit)
+				end
+			else
+				hum:Move(Vector3.zero)
+			end
+
+			-- conveyor belts push bots too (players are pushed by their own client)
+			local cx, cz = Grid.cellOf(root.Position)
+			local belt = S.belts[key(cx, cz)]
+			if belt then
+				root.CFrame += Vector3.new(belt.dx, 0, belt.dz) * Config.BELT_SPEED * dt
+			end
+		elseif hum then
+			hum:Move(Vector3.zero)
+		end
+	end
+end
+
+return Bots
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX4"><Properties>
 <string name="Name">Grid</string>
-<ProtectedString name="Source"><![CDATA[-- Rooster-hulpfuncties: van vakje naar positie en terug.
--- De grootte kan per ronde veranderen (Grid.setSize), afhankelijk van het aantal spelers.
+<ProtectedString name="Source"><![CDATA[-- Grid helpers: from cell to position and back.
+-- The size can change every round (Grid.setSize), depending on the number of players.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
 
@@ -1325,7 +1797,7 @@ local Grid = {
 
 local originX, originZ = 0, 0
 
--- Dichtstbijzijnde oneven getal (in oneven rijen/kolommen staan nooit vaste muren)
+-- Nearest odd number (odd rows/columns never have fixed walls)
 function Grid.odd(v)
 	return math.floor((v - 1) / 2 + 0.5) * 2 + 1
 end
@@ -1334,11 +1806,11 @@ function Grid.setSize(w, h)
 	Grid.W, Grid.H = w, h
 	originX = -(w - 1) * T / 2
 	originZ = -(h - 1) * T / 2
-	Grid.XM, Grid.ZM = Grid.odd((w + 1) / 2), Grid.odd((h + 1) / 2) -- midden
+	Grid.XM, Grid.ZM = Grid.odd((w + 1) / 2), Grid.odd((h + 1) / 2) -- middle
 end
 Grid.setSize(Grid.W, Grid.H)
 
--- Kies de arenagrootte bij het aantal spelers
+-- Pick the arena size for the number of players
 function Grid.sizeFor(playerCount)
 	for _, row in ipairs(Config.ARENA_SIZES) do
 		if playerCount <= row.players then
@@ -1349,7 +1821,7 @@ function Grid.sizeFor(playerCount)
 	return last.w, last.h
 end
 
--- Startplekken: eerst de vier hoeken, daarna het midden van elke rand
+-- Spawn points: the four corners first, then the middle of each edge
 function Grid.spawns()
 	local W, H, XM, ZM = Grid.W, Grid.H, Grid.XM, Grid.ZM
 	return {
@@ -1378,7 +1850,7 @@ function Grid.inBounds(x, z)
 	return x >= 1 and x <= Grid.W and z >= 1 and z <= Grid.H
 end
 
--- Hoofdrichting (één as) van een vector, bijv. kijk- of looprichting
+-- Main direction (one axis) of a vector, e.g. look or walk direction
 function Grid.axisDir(v)
 	if math.abs(v.X) > math.abs(v.Z) then
 		return v.X > 0 and 1 or -1, 0
@@ -1386,7 +1858,7 @@ function Grid.axisDir(v)
 	return 0, v.Z > 0 and 1 or -1
 end
 
--- Alle vakjes in een spiraal van buiten naar binnen (voor sudden death)
+-- All cells in a spiral from the outside in (for sudden death)
 function Grid.spiral()
 	local out = {}
 	local x1, z1, x2, z2 = 1, 1, Grid.W, Grid.H
@@ -1414,9 +1886,9 @@ end
 
 return Grid
 ]]></ProtectedString>
-</Properties></Item><Item class="ModuleScript" referent="RBX4"><Properties>
+</Properties></Item><Item class="ModuleScript" referent="RBX5"><Properties>
 <string name="Name">Net</string>
-<ProtectedString name="Source"><![CDATA[-- RemoteEvents en ronde-informatie voor de clients
+<ProtectedString name="Source"><![CDATA[-- RemoteEvents and round info for the clients
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Net = {}
@@ -1434,16 +1906,19 @@ end
 
 Net.PlaceBomb = newRemote("PlaceBomb")
 Net.ThrowBomb = newRemote("ThrowBomb")
-Net.Announce = newRemote("Announce") -- (tekst, seconden, klein?)
-Net.RoundResult = newRemote("RoundResult") -- (titel, rijen)
+Net.Announce = newRemote("Announce") -- (message, seconds, small?) – message is a Lang key table
+Net.RoundResult = newRemote("RoundResult") -- (title message, rows, seconds)
 
--- Ronde-info als attributen op de map: State, RoundEndsAt, SuddenDeath, AliveCount, Round
+-- Round info as attributes on the folder: State, RoundEndsAt, SuddenDeath, AliveCount,
+-- Round, ArenaW, ArenaH, Belts
 folder:SetAttribute("State", "lobby")
 folder.Parent = ReplicatedStorage
 
 function Net.announce(text, seconds, small, player)
 	if player then
-		Net.Announce:FireClient(player, text, seconds or 3, small)
+		if player:IsA("Player") then -- bots have no screen
+			Net.Announce:FireClient(player, text, seconds or 3, small)
+		end
 	else
 		Net.Announce:FireAllClients(text, seconds or 3, small)
 	end
@@ -1455,9 +1930,9 @@ end
 
 return Net
 ]]></ProtectedString>
-</Properties></Item><Item class="ModuleScript" referent="RBX5"><Properties>
+</Properties></Item><Item class="ModuleScript" referent="RBX6"><Properties>
 <string name="Name">Powerups</string>
-<ProtectedString name="Source"><![CDATA[-- Goodies: wat ze doen, verschijnen, oppakken en de 💀-vloeken
+<ProtectedString name="Source"><![CDATA[-- Goodies: what they do, spawning, picking them up, and the 💀 curses
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
@@ -1468,41 +1943,36 @@ local Sounds = require(script.Parent.Sounds)
 
 local Powerups = {}
 
-local CURSES = {
-	slow = "🐌 Vervloekt: supertraag!",
-	nobombs = "🚫 Vervloekt: je kunt geen bommen leggen!",
-	autobomb = "💩 Vervloekt: je legt vanzelf bommen!",
-}
+-- Curse kinds; the text shown to players is the Lang key "curse_<kind>"
 local CURSE_KINDS = { "slow", "nobombs", "autobomb" }
-Powerups.CURSES = CURSES
 
 local DEFS = {
 	Range = {
-		emoji = "🔥", name = "Vuurbereik +1", color = Color3.fromRGB(255, 120, 40), weight = 25,
+		emoji = "🔥", color = Color3.fromRGB(255, 120, 40), weight = 25,
 		apply = function(s) s.range = math.min(s.range + 1, Config.MAX_RANGE) end,
 	},
 	Bomb = {
-		emoji = "💣", name = "Extra bom", color = Color3.fromRGB(90, 90, 110), weight = 25,
+		emoji = "💣", color = Color3.fromRGB(90, 90, 110), weight = 25,
 		apply = function(s) s.maxBombs = math.min(s.maxBombs + 1, Config.MAX_BOMBS) end,
 	},
 	Speed = {
-		emoji = "👟", name = "Sneller lopen", color = Color3.fromRGB(80, 200, 255), weight = 15,
+		emoji = "👟", color = Color3.fromRGB(80, 200, 255), weight = 15,
 		apply = function(s) s.speed = math.min(s.speed + Config.SPEED_STEP, Config.MAX_SPEED) end,
 	},
 	Pierce = {
-		emoji = "⚡", name = "Doorboor-bommen (vuur breekt door kisten)", color = Color3.fromRGB(255, 230, 60), weight = 10,
+		emoji = "⚡", color = Color3.fromRGB(255, 230, 60), weight = 10,
 		apply = function(s) s.pierce = true end,
 	},
 	Throw = {
-		emoji = "🧤", name = "Handschoen: bommen gooien (E)", color = Color3.fromRGB(120, 255, 120), weight = 12,
+		emoji = "🧤", color = Color3.fromRGB(120, 255, 120), weight = 12,
 		apply = function(s) s.throw = true end,
 	},
 	Kick = {
-		emoji = "🦶", name = "Schopschoen: loop tegen een bom om hem weg te schoppen", color = Color3.fromRGB(255, 150, 220), weight = 12,
+		emoji = "🦶", color = Color3.fromRGB(255, 150, 220), weight = 12,
 		apply = function(s) s.kick = true end,
 	},
 	Skull = {
-		emoji = "💀", name = "Vloek", color = Color3.fromRGB(150, 60, 200), weight = 8,
+		emoji = "💀", color = Color3.fromRGB(150, 60, 200), weight = 8,
 		apply = function(s)
 			s.curse = CURSE_KINDS[math.random(#CURSE_KINDS)]
 			s.curseUntil = os.clock() + Config.CURSE_TIME
@@ -1555,7 +2025,7 @@ function Powerups.sync(player)
 	player:SetAttribute("Pierce", s.pierce)
 	player:SetAttribute("Throw", s.throw)
 	player:SetAttribute("Kick", s.kick)
-	player:SetAttribute("Curse", s.curse and CURSES[s.curse] or nil)
+	player:SetAttribute("Curse", s.curse and ("curse_" .. s.curse) or nil)
 	local hum = S.getHum(player)
 	if hum then
 		hum.WalkSpeed = s.curse == "slow" and Config.CURSE_SLOW_SPEED or s.speed
@@ -1599,7 +2069,7 @@ function Powerups.spawn(x, z, kind)
 	S.powerups[Grid.key(x, z)] = { part = p, kind = kind }
 end
 
--- Elke frame: goodies oppakken en vloeken laten aflopen
+-- Every frame: pick up goodies and let curses run out
 function Powerups.update(now)
 	for plr in pairs(S.alive) do
 		local root = S.getRoot(plr)
@@ -1614,17 +2084,17 @@ function Powerups.update(now)
 				Powerups.remove(k)
 				Powerups.sync(plr)
 				if pu.kind == "Skull" then
-					Net.announce(CURSES[s.curse], 2.5, true, plr)
+					Net.announce({ k = "curse_" .. s.curse }, 2.5, true, plr)
 					Sounds.play("Curse", root.Position)
 				else
-					Net.announce(def.emoji .. " " .. def.name, 1.8, true, plr)
+					Net.announce({ k = "pu_" .. pu.kind }, 1.8, true, plr)
 					Sounds.play("Pickup", root.Position)
 				end
 			end
 			if s.curse and now >= s.curseUntil then
 				s.curse = nil
 				Powerups.sync(plr)
-				Net.announce("✨ De vloek is voorbij", 1.8, true, plr)
+				Net.announce({ k = "curse_over" }, 1.8, true, plr)
 			end
 		end
 	end
@@ -1632,9 +2102,9 @@ end
 
 return Powerups
 ]]></ProtectedString>
-</Properties></Item><Item class="ModuleScript" referent="RBX6"><Properties>
+</Properties></Item><Item class="ModuleScript" referent="RBX7"><Properties>
 <string name="Name">Sounds</string>
-<ProtectedString name="Source"><![CDATA[-- Geluiden afspelen (ids staan in BombConfig.SOUNDS)
+<ProtectedString name="Source"><![CDATA[-- Playing sounds (ids are in BombConfig.SOUNDS)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
@@ -1645,7 +2115,7 @@ local holder = Instance.new("Folder")
 holder.Name = "BombSounds"
 holder.Parent = workspace
 
--- position = nil speelt het geluid overal even hard af
+-- position = nil plays the sound equally loud everywhere
 function Sounds.play(name, position)
 	local def = Config.SOUNDS[name]
 	if not def or def.id == "" then
@@ -1672,38 +2142,59 @@ end
 
 return Sounds
 ]]></ProtectedString>
-</Properties></Item><Item class="ModuleScript" referent="RBX7"><Properties>
+</Properties></Item><Item class="ModuleScript" referent="RBX8"><Properties>
 <string name="Name">State</string>
-<ProtectedString name="Source"><![CDATA[-- Gedeelde toestand van het spel (één tabel die alle modules gebruiken)
+<ProtectedString name="Source"><![CDATA[-- Shared game state (one table all modules use)
 local State = {
-	arena = nil, -- Folder met alle onderdelen van de huidige arena
-	gen = 0, -- telt op bij elke nieuwe arena, zodat oude timers niets meer doen
+	arena = nil, -- Folder with all parts of the current arena
+	gen = 0, -- goes up with every new arena, so old timers stop doing anything
 	terrain = {}, -- key -> "wall" | "crate"
 	crateParts = {}, -- key -> Part
-	bombs = {}, -- set van bommen
-	bombAt = {}, -- key -> bom die op dat vakje ligt
+	bombs = {}, -- set of bombs
+	bombAt = {}, -- key -> bomb lying on that cell
 	powerups = {}, -- key -> { part, kind }
-	flames = {}, -- lijst van { cells = {key=true}, expires }
-	warps = {}, -- key -> { x, z } van de andere warp
+	flames = {}, -- list of { cells = {key=true}, expires }
+	warps = {}, -- key -> { x, z } of the other warp
 	belts = {}, -- key -> { dx, dz }
 	toggles = {}, -- key -> { x, z, part, up, closed }
 	stats = {}, -- player -> stats
 	alive = {}, -- player -> true
-	roundPlayers = {}, -- spelers die deze ronde meedoen
+	roundPlayers = {}, -- players (and bots) in this round
 	roundState = "lobby", -- lobby | playing | over
 }
 
+-- Bots are Folder instances (not Players); their character models live here
+State.botChars = {} -- bot Folder -> Model
+
+function State.isBot(p)
+	return not p:IsA("Player")
+end
+
+function State.charOf(p)
+	if p:IsA("Player") then
+		return p.Character
+	end
+	return State.botChars[p]
+end
+
+function State.nameOf(p)
+	if p:IsA("Player") then
+		return p.DisplayName
+	end
+	return p:GetAttribute("DisplayName") or p.Name
+end
+
 function State.getRoot(player)
-	local c = player.Character
+	local c = State.charOf(player)
 	return c and c:FindFirstChild("HumanoidRootPart")
 end
 
 function State.getHum(player)
-	local c = player.Character
+	local c = State.charOf(player)
 	return c and c:FindFirstChildOfClass("Humanoid")
 end
 
--- Staat er een levende speler op dit vakje?
+-- Is a living player on this cell?
 function State.playerOnCell(cellOf, x, z)
 	for plr in pairs(State.alive) do
 		local root = State.getRoot(plr)
@@ -1720,9 +2211,10 @@ end
 return State
 ]]></ProtectedString>
 </Properties></Item></Item></Item>
-<Item class="StarterPlayer" referent="RBX18"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX17"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="LocalScript" referent="RBX16"><Properties>
+<Item class="StarterPlayer" referent="RBX19"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX18"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="LocalScript" referent="RBX17"><Properties>
 <string name="Name">BombermanClient</string>
-<ProtectedString name="Source"><![CDATA[-- Roblomberman: client (bovenaanzicht-camera, HUD, knoppen, hoekhulp)
+<ProtectedString name="Source"><![CDATA[-- Roblomberman: client (top-down camera, HUD, buttons, corner assist, belts).
+-- All text goes through Lang, in the language the player set in Roblox.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -1730,8 +2222,10 @@ local ContextActionService = game:GetService("ContextActionService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
+local LocalizationService = game:GetService("LocalizationService")
 
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+local Lang = require(ReplicatedStorage:WaitForChild("Lang"))
 local remotes = ReplicatedStorage:WaitForChild("BombRemotes")
 local placeRemote = remotes:WaitForChild("PlaceBomb")
 local throwRemote = remotes:WaitForChild("ThrowBomb")
@@ -1739,12 +2233,20 @@ local announceRemote = remotes:WaitForChild("Announce")
 local resultRemote = remotes:WaitForChild("RoundResult")
 
 local player = Players.LocalPlayer
+
+local okLocale, localeId = pcall(function()
+	return LocalizationService.RobloxLocaleId
+end)
+local lang = Lang.pick(okLocale and localeId or player.LocaleId)
+local function tr(msg, args)
+	return Lang.t(lang, msg, args)
+end
 local camera = workspace.CurrentCamera
 camera.FieldOfView = 40
 
 local T = Config.TILE
 
--- Het veld verandert per ronde van grootte; de server zet de maat op de remotes-map
+-- The arena changes size every round; the server puts the size on the remotes folder
 local arenaW, arenaH = 13, 13
 local originX, originZ = 0, 0
 local belts = {} -- key -> { dx, dz }
@@ -1771,12 +2273,12 @@ local function cellOf(p)
 	return math.floor((p.X - originX) / T + 0.5) + 1, math.floor((p.Z - originZ) / T + 0.5) + 1
 end
 
--- Geluid "hoor" je vanuit het midden van de arena, niet vanuit de hoge camera
+-- Hear sounds from the middle of the arena, not from the high camera
 SoundService:SetListener(Enum.ListenerType.CFrame, CFrame.new(0, 20, 0))
 
 ----------------------------------------------------------------------
--- Camera: van boven. Leef je, dan volgt hij jouw speler; ben je af
--- (of kijk je mee), dan zie je het hele veld.
+-- Camera: from above. While alive it follows your player; when you are out
+-- (or spectating) it shows the whole arena.
 ----------------------------------------------------------------------
 local camFocus = Vector3.zero
 local camDist = 100
@@ -1802,7 +2304,7 @@ RunService:BindToRenderStep("BombCamera", Enum.RenderPriority.Camera.Value + 1, 
 		local viewW = math.min(Config.CAMERA_VIEW_W, arenaW)
 		local viewH = math.min(Config.CAMERA_VIEW_H, arenaH)
 		local dist, halfW, halfH = distFor(viewW, viewH, 2)
-		-- niet verder schuiven dan de rand van het veld
+		-- don't move past the edge of the arena
 		local maxX = math.max(0, (arenaW * T) / 2 + T - halfW)
 		local maxZ = math.max(0, (arenaH * T) / 2 + T - halfH)
 		local p = root.Position
@@ -1816,12 +2318,12 @@ RunService:BindToRenderStep("BombCamera", Enum.RenderPriority.Camera.Value + 1, 
 	local a = 1 - math.exp(-Config.CAMERA_SMOOTH * dt)
 	camFocus = camFocus:Lerp(targetFocus, a)
 	camDist += (targetDist - camDist) * a
-	-- kleine kanteling zodat "omhoog" op het scherm = noord (-Z) blijft
+	-- slight tilt so "up" on screen stays north (-Z)
 	camera.CFrame = CFrame.lookAt(camFocus + Vector3.new(0, camDist, camDist * 0.22), camFocus)
 end)
 
 ----------------------------------------------------------------------
--- Lopende banden: duwen je eigen speler mee
+-- Conveyor belts: push your own character along
 ----------------------------------------------------------------------
 RunService.Heartbeat:Connect(function(dt)
 	if next(belts) == nil then
@@ -1841,13 +2343,13 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 ----------------------------------------------------------------------
--- Hoekhulp: schuif automatisch de gang in als je net naast een opening staat.
--- Muren staan op vakjes met even x én even z, dus horizontaal lopen kan
--- alleen in rijen met een oneven z, en verticaal in kolommen met een oneven x.
+-- Corner assist: slide into the corridor when you are just next to an opening.
+-- Fixed walls sit on cells with even x AND even z, so walking horizontally is only
+-- possible in rows with an odd z, and vertically in columns with an odd x.
 ----------------------------------------------------------------------
 local function laneOffset(p, origin)
-	local idx = (p - origin) / T + 1 -- vakje (met komma)
-	local lane = math.floor((idx - 1) / 2 + 0.5) * 2 + 1 -- dichtstbijzijnde oneven vakje
+	local idx = (p - origin) / T + 1 -- cell index (fractional)
+	local lane = math.floor((idx - 1) / 2 + 0.5) * 2 + 1 -- nearest odd cell
 	return origin + (lane - 1) * T - p
 end
 
@@ -1882,7 +2384,7 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 ----------------------------------------------------------------------
--- Knoppen
+-- Buttons
 ----------------------------------------------------------------------
 ContextActionService:BindAction("PlaceBomb", function(_, state)
 	if state == Enum.UserInputState.Begin then
@@ -1909,7 +2411,7 @@ gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.Parent = player:WaitForChild("PlayerGui")
 
--- Alles meeschalen met de schermbreedte (telefoon = kleiner)
+-- Scale everything with the screen size (phone = smaller)
 local uiScale = Instance.new("UIScale")
 uiScale.Parent = gui
 local function rescale()
@@ -1932,7 +2434,7 @@ local function label(parent, props)
 	return l
 end
 
--- Onderbalk met je goodies
+-- Bottom bar with your goodies
 local bar = Instance.new("Frame")
 bar.AnchorPoint = Vector2.new(0.5, 1)
 bar.Position = UDim2.new(0.5, 0, 1, -14)
@@ -1971,7 +2473,7 @@ local curseLabel = label(gui, {
 })
 
 local function toggle(l, on, emoji)
-	l.Text = emoji .. (on and " aan" or " uit")
+	l.Text = emoji .. " " .. tr(on and "on" or "off")
 	l.TextTransparency = on and 0 or 0.55
 end
 
@@ -1983,12 +2485,13 @@ local function refresh()
 	toggle(lThrow, player:GetAttribute("Throw"), "🧤")
 	toggle(lKick, player:GetAttribute("Kick"), "🦶")
 	local color = player:GetAttribute("Color")
-	lColor.Text = player:GetAttribute("ColorName") or ""
+	local colorKey = player:GetAttribute("ColorName")
+	lColor.Text = colorKey and tr(colorKey) or ""
 	lColor.TextColor3 = color or Color3.new(1, 1, 1)
 	stroke.Color = color or Color3.new(1, 1, 1)
 	stroke.Transparency = color and 0 or 1
 	local curse = player:GetAttribute("Curse")
-	curseLabel.Text = curse or ""
+	curseLabel.Text = curse and tr(curse) or ""
 	curseLabel.Visible = curse ~= nil
 end
 for _, name in ipairs({ "Bombs", "Range", "Speed", "Pierce", "Throw", "Kick", "Color", "ColorName", "Curse" }) do
@@ -1996,9 +2499,9 @@ for _, name in ipairs({ "Bombs", "Range", "Speed", "Pierce", "Throw", "Kick", "C
 end
 refresh()
 
--- Uitleg: andere tekst op telefoon/tablet dan met toetsenbord
+-- Help text: different on phone/tablet than with a keyboard
 local touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-local help = label(gui, {
+label(gui, {
 	AnchorPoint = Vector2.new(0, 0),
 	Position = UDim2.new(0, 14, 0, 60),
 	Size = UDim2.fromOffset(300, 44),
@@ -2007,11 +2510,10 @@ local help = label(gui, {
 	TextStrokeTransparency = 0.5,
 	Font = Enum.Font.Gotham,
 	TextSize = 14,
-	Text = touchOnly and "💣-knop: bom leggen\n🧤-knop: bom oppakken / gooien"
-		or "Spatie: bom leggen\nE: bom oppakken / gooien (met 🧤)",
+	Text = tr(touchOnly and "help_touch" or "help_keys"),
 })
 
--- Timer rechtsboven
+-- Timer top right
 local timerLabel = label(gui, {
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, -16, 0, 56),
@@ -2023,7 +2525,7 @@ local timerLabel = label(gui, {
 	Text = "",
 })
 
--- Toeschouwers-melding
+-- Spectator message
 local spectateLabel = label(gui, {
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 96),
@@ -2037,7 +2539,7 @@ RunService.RenderStepped:Connect(function()
 	local state = remotes:GetAttribute("State")
 	if state == "playing" then
 		if remotes:GetAttribute("SuddenDeath") then
-			timerLabel.Text = "☠️ SUDDEN DEATH"
+			timerLabel.Text = tr("sudden_hud")
 			timerLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
 		else
 			local left = math.max(0, (remotes:GetAttribute("RoundEndsAt") or 0) - workspace:GetServerTimeNow())
@@ -2051,9 +2553,9 @@ RunService.RenderStepped:Connect(function()
 	if state == "playing" and not player:GetAttribute("Alive") then
 		local n = remotes:GetAttribute("AliveCount") or 0
 		if player:GetAttribute("InRound") then
-			spectateLabel.Text = "👀 Je bent af – kijk mee! Nog " .. n .. " over."
+			spectateLabel.Text = tr("spectate_out", { n = n })
 		else
-			spectateLabel.Text = "👀 Er is een ronde bezig – je doet mee in de volgende."
+			spectateLabel.Text = tr("spectate_wait")
 		end
 		spectateLabel.Visible = true
 		bar.Visible = false
@@ -2063,7 +2565,7 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- Grote/kleine meldingen
+-- Big / small announcements
 local banner = label(gui, {
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 24),
@@ -2075,10 +2577,10 @@ local banner = label(gui, {
 })
 
 local shown = 0
-announceRemote.OnClientEvent:Connect(function(text, seconds, small)
+announceRemote.OnClientEvent:Connect(function(message, seconds, small)
 	shown += 1
 	local mine = shown
-	banner.Text = text
+	banner.Text = tr(message)
 	banner.Size = small and UDim2.fromOffset(520, 34) or UDim2.fromOffset(640, 56)
 	banner.Position = small and UDim2.new(0.5, 0, 1, -112) or UDim2.new(0.5, 0, 0, 24)
 	banner.AnchorPoint = small and Vector2.new(0.5, 1) or Vector2.new(0.5, 0)
@@ -2092,7 +2594,7 @@ announceRemote.OnClientEvent:Connect(function(text, seconds, small)
 end)
 
 ----------------------------------------------------------------------
--- Eindscherm na elke ronde
+-- Scoreboard after every round
 ----------------------------------------------------------------------
 local panel = Instance.new("Frame")
 panel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -2128,7 +2630,7 @@ resultRemote.OnClientEvent:Connect(function(title, rows, seconds)
 		Size = UDim2.new(1, 0, 0, 40),
 		Font = Enum.Font.GothamBlack,
 		TextScaled = true,
-		Text = title,
+		Text = tr(title),
 	})
 	label(panel, {
 		LayoutOrder = 1,
@@ -2136,7 +2638,7 @@ resultRemote.OnClientEvent:Connect(function(title, rows, seconds)
 		Font = Enum.Font.Gotham,
 		TextSize = 15,
 		TextTransparency = 0.3,
-		Text = "Overwinningen",
+		Text = tr("wins"),
 	})
 	for i, row in ipairs(rows) do
 		local l = label(panel, {

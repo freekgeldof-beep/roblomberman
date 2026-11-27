@@ -1,4 +1,5 @@
--- Roblomberman: client (bovenaanzicht-camera, HUD, knoppen, hoekhulp)
+-- Roblomberman: client (top-down camera, HUD, buttons, corner assist, belts).
+-- All text goes through Lang, in the language the player set in Roblox.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -6,8 +7,10 @@ local ContextActionService = game:GetService("ContextActionService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
+local LocalizationService = game:GetService("LocalizationService")
 
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+local Lang = require(ReplicatedStorage:WaitForChild("Lang"))
 local remotes = ReplicatedStorage:WaitForChild("BombRemotes")
 local placeRemote = remotes:WaitForChild("PlaceBomb")
 local throwRemote = remotes:WaitForChild("ThrowBomb")
@@ -15,12 +18,20 @@ local announceRemote = remotes:WaitForChild("Announce")
 local resultRemote = remotes:WaitForChild("RoundResult")
 
 local player = Players.LocalPlayer
+
+local okLocale, localeId = pcall(function()
+	return LocalizationService.RobloxLocaleId
+end)
+local lang = Lang.pick(okLocale and localeId or player.LocaleId)
+local function tr(msg, args)
+	return Lang.t(lang, msg, args)
+end
 local camera = workspace.CurrentCamera
 camera.FieldOfView = 40
 
 local T = Config.TILE
 
--- Het veld verandert per ronde van grootte; de server zet de maat op de remotes-map
+-- The arena changes size every round; the server puts the size on the remotes folder
 local arenaW, arenaH = 13, 13
 local originX, originZ = 0, 0
 local belts = {} -- key -> { dx, dz }
@@ -47,12 +58,12 @@ local function cellOf(p)
 	return math.floor((p.X - originX) / T + 0.5) + 1, math.floor((p.Z - originZ) / T + 0.5) + 1
 end
 
--- Geluid "hoor" je vanuit het midden van de arena, niet vanuit de hoge camera
+-- Hear sounds from the middle of the arena, not from the high camera
 SoundService:SetListener(Enum.ListenerType.CFrame, CFrame.new(0, 20, 0))
 
 ----------------------------------------------------------------------
--- Camera: van boven. Leef je, dan volgt hij jouw speler; ben je af
--- (of kijk je mee), dan zie je het hele veld.
+-- Camera: from above. While alive it follows your player; when you are out
+-- (or spectating) it shows the whole arena.
 ----------------------------------------------------------------------
 local camFocus = Vector3.zero
 local camDist = 100
@@ -78,7 +89,7 @@ RunService:BindToRenderStep("BombCamera", Enum.RenderPriority.Camera.Value + 1, 
 		local viewW = math.min(Config.CAMERA_VIEW_W, arenaW)
 		local viewH = math.min(Config.CAMERA_VIEW_H, arenaH)
 		local dist, halfW, halfH = distFor(viewW, viewH, 2)
-		-- niet verder schuiven dan de rand van het veld
+		-- don't move past the edge of the arena
 		local maxX = math.max(0, (arenaW * T) / 2 + T - halfW)
 		local maxZ = math.max(0, (arenaH * T) / 2 + T - halfH)
 		local p = root.Position
@@ -92,12 +103,12 @@ RunService:BindToRenderStep("BombCamera", Enum.RenderPriority.Camera.Value + 1, 
 	local a = 1 - math.exp(-Config.CAMERA_SMOOTH * dt)
 	camFocus = camFocus:Lerp(targetFocus, a)
 	camDist += (targetDist - camDist) * a
-	-- kleine kanteling zodat "omhoog" op het scherm = noord (-Z) blijft
+	-- slight tilt so "up" on screen stays north (-Z)
 	camera.CFrame = CFrame.lookAt(camFocus + Vector3.new(0, camDist, camDist * 0.22), camFocus)
 end)
 
 ----------------------------------------------------------------------
--- Lopende banden: duwen je eigen speler mee
+-- Conveyor belts: push your own character along
 ----------------------------------------------------------------------
 RunService.Heartbeat:Connect(function(dt)
 	if next(belts) == nil then
@@ -117,13 +128,13 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 ----------------------------------------------------------------------
--- Hoekhulp: schuif automatisch de gang in als je net naast een opening staat.
--- Muren staan op vakjes met even x én even z, dus horizontaal lopen kan
--- alleen in rijen met een oneven z, en verticaal in kolommen met een oneven x.
+-- Corner assist: slide into the corridor when you are just next to an opening.
+-- Fixed walls sit on cells with even x AND even z, so walking horizontally is only
+-- possible in rows with an odd z, and vertically in columns with an odd x.
 ----------------------------------------------------------------------
 local function laneOffset(p, origin)
-	local idx = (p - origin) / T + 1 -- vakje (met komma)
-	local lane = math.floor((idx - 1) / 2 + 0.5) * 2 + 1 -- dichtstbijzijnde oneven vakje
+	local idx = (p - origin) / T + 1 -- cell index (fractional)
+	local lane = math.floor((idx - 1) / 2 + 0.5) * 2 + 1 -- nearest odd cell
 	return origin + (lane - 1) * T - p
 end
 
@@ -158,7 +169,7 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 ----------------------------------------------------------------------
--- Knoppen
+-- Buttons
 ----------------------------------------------------------------------
 ContextActionService:BindAction("PlaceBomb", function(_, state)
 	if state == Enum.UserInputState.Begin then
@@ -185,7 +196,7 @@ gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.Parent = player:WaitForChild("PlayerGui")
 
--- Alles meeschalen met de schermbreedte (telefoon = kleiner)
+-- Scale everything with the screen size (phone = smaller)
 local uiScale = Instance.new("UIScale")
 uiScale.Parent = gui
 local function rescale()
@@ -208,7 +219,7 @@ local function label(parent, props)
 	return l
 end
 
--- Onderbalk met je goodies
+-- Bottom bar with your goodies
 local bar = Instance.new("Frame")
 bar.AnchorPoint = Vector2.new(0.5, 1)
 bar.Position = UDim2.new(0.5, 0, 1, -14)
@@ -247,7 +258,7 @@ local curseLabel = label(gui, {
 })
 
 local function toggle(l, on, emoji)
-	l.Text = emoji .. (on and " aan" or " uit")
+	l.Text = emoji .. " " .. tr(on and "on" or "off")
 	l.TextTransparency = on and 0 or 0.55
 end
 
@@ -259,12 +270,13 @@ local function refresh()
 	toggle(lThrow, player:GetAttribute("Throw"), "🧤")
 	toggle(lKick, player:GetAttribute("Kick"), "🦶")
 	local color = player:GetAttribute("Color")
-	lColor.Text = player:GetAttribute("ColorName") or ""
+	local colorKey = player:GetAttribute("ColorName")
+	lColor.Text = colorKey and tr(colorKey) or ""
 	lColor.TextColor3 = color or Color3.new(1, 1, 1)
 	stroke.Color = color or Color3.new(1, 1, 1)
 	stroke.Transparency = color and 0 or 1
 	local curse = player:GetAttribute("Curse")
-	curseLabel.Text = curse or ""
+	curseLabel.Text = curse and tr(curse) or ""
 	curseLabel.Visible = curse ~= nil
 end
 for _, name in ipairs({ "Bombs", "Range", "Speed", "Pierce", "Throw", "Kick", "Color", "ColorName", "Curse" }) do
@@ -272,9 +284,9 @@ for _, name in ipairs({ "Bombs", "Range", "Speed", "Pierce", "Throw", "Kick", "C
 end
 refresh()
 
--- Uitleg: andere tekst op telefoon/tablet dan met toetsenbord
+-- Help text: different on phone/tablet than with a keyboard
 local touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-local help = label(gui, {
+label(gui, {
 	AnchorPoint = Vector2.new(0, 0),
 	Position = UDim2.new(0, 14, 0, 60),
 	Size = UDim2.fromOffset(300, 44),
@@ -283,11 +295,10 @@ local help = label(gui, {
 	TextStrokeTransparency = 0.5,
 	Font = Enum.Font.Gotham,
 	TextSize = 14,
-	Text = touchOnly and "💣-knop: bom leggen\n🧤-knop: bom oppakken / gooien"
-		or "Spatie: bom leggen\nE: bom oppakken / gooien (met 🧤)",
+	Text = tr(touchOnly and "help_touch" or "help_keys"),
 })
 
--- Timer rechtsboven
+-- Timer top right
 local timerLabel = label(gui, {
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, -16, 0, 56),
@@ -299,7 +310,7 @@ local timerLabel = label(gui, {
 	Text = "",
 })
 
--- Toeschouwers-melding
+-- Spectator message
 local spectateLabel = label(gui, {
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 96),
@@ -313,7 +324,7 @@ RunService.RenderStepped:Connect(function()
 	local state = remotes:GetAttribute("State")
 	if state == "playing" then
 		if remotes:GetAttribute("SuddenDeath") then
-			timerLabel.Text = "☠️ SUDDEN DEATH"
+			timerLabel.Text = tr("sudden_hud")
 			timerLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
 		else
 			local left = math.max(0, (remotes:GetAttribute("RoundEndsAt") or 0) - workspace:GetServerTimeNow())
@@ -327,9 +338,9 @@ RunService.RenderStepped:Connect(function()
 	if state == "playing" and not player:GetAttribute("Alive") then
 		local n = remotes:GetAttribute("AliveCount") or 0
 		if player:GetAttribute("InRound") then
-			spectateLabel.Text = "👀 Je bent af – kijk mee! Nog " .. n .. " over."
+			spectateLabel.Text = tr("spectate_out", { n = n })
 		else
-			spectateLabel.Text = "👀 Er is een ronde bezig – je doet mee in de volgende."
+			spectateLabel.Text = tr("spectate_wait")
 		end
 		spectateLabel.Visible = true
 		bar.Visible = false
@@ -339,7 +350,7 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- Grote/kleine meldingen
+-- Big / small announcements
 local banner = label(gui, {
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 24),
@@ -351,10 +362,10 @@ local banner = label(gui, {
 })
 
 local shown = 0
-announceRemote.OnClientEvent:Connect(function(text, seconds, small)
+announceRemote.OnClientEvent:Connect(function(message, seconds, small)
 	shown += 1
 	local mine = shown
-	banner.Text = text
+	banner.Text = tr(message)
 	banner.Size = small and UDim2.fromOffset(520, 34) or UDim2.fromOffset(640, 56)
 	banner.Position = small and UDim2.new(0.5, 0, 1, -112) or UDim2.new(0.5, 0, 0, 24)
 	banner.AnchorPoint = small and Vector2.new(0.5, 1) or Vector2.new(0.5, 0)
@@ -368,7 +379,7 @@ announceRemote.OnClientEvent:Connect(function(text, seconds, small)
 end)
 
 ----------------------------------------------------------------------
--- Eindscherm na elke ronde
+-- Scoreboard after every round
 ----------------------------------------------------------------------
 local panel = Instance.new("Frame")
 panel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -404,7 +415,7 @@ resultRemote.OnClientEvent:Connect(function(title, rows, seconds)
 		Size = UDim2.new(1, 0, 0, 40),
 		Font = Enum.Font.GothamBlack,
 		TextScaled = true,
-		Text = title,
+		Text = tr(title),
 	})
 	label(panel, {
 		LayoutOrder = 1,
@@ -412,7 +423,7 @@ resultRemote.OnClientEvent:Connect(function(title, rows, seconds)
 		Font = Enum.Font.Gotham,
 		TextSize = 15,
 		TextTransparency = 0.3,
-		Text = "Overwinningen",
+		Text = tr("wins"),
 	})
 	for i, row in ipairs(rows) do
 		local l = label(panel, {

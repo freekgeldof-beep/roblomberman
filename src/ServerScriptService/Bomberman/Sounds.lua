@@ -1,4 +1,4 @@
--- Geluiden afspelen (ids staan in BombConfig.SOUNDS)
+-- Playing sounds (ids are in BombConfig.SOUNDS)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
@@ -9,7 +9,7 @@ local holder = Instance.new("Folder")
 holder.Name = "BombSounds"
 holder.Parent = workspace
 
--- position = nil speelt het geluid overal even hard af
+-- position = nil plays the sound equally loud everywhere
 function Sounds.play(name, position)
 	local def = Config.SOUNDS[name]
 	if not def or def.id == "" then

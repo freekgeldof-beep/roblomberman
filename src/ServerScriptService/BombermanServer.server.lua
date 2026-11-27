@@ -1,12 +1,15 @@
--- Roblomberman: server (rondes en spelers)
--- De rest van de spelregels staat in de modules in de map "Bomberman":
---   Grid      rooster-hulpfuncties
---   State     gedeelde toestand
---   Net       RemoteEvents en ronde-info voor de clients
---   Sounds    geluiden
---   Powerups  goodies en vloeken
---   Arena     arena bouwen, kisten, sudden-death-muren
---   Bombs     bommen leggen/gooien/schoppen/ontploffen en vuur
+-- Roblomberman: server entry point (rounds and players).
+-- The game rules live in the modules in the "Bomberman" folder:
+--   Grid      grid helpers (cell <-> position, arena size)
+--   State     shared game state
+--   Net       RemoteEvents and round info for the clients
+--   Sounds    sound effects
+--   Powerups  goodies and curses
+--   Arena     building the arena, crates, warps, belts, switch walls, sudden death
+--   Bombs     placing / throwing / kicking / exploding bombs and fire
+--   Bots      computer opponents
+-- Player-facing text is never built here: we send message keys (see
+-- ReplicatedStorage.Lang) and each client translates them.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -21,6 +24,7 @@ local Sounds = require(Modules:WaitForChild("Sounds"))
 local Powerups = require(Modules:WaitForChild("Powerups"))
 local Arena = require(Modules:WaitForChild("Arena"))
 local Bombs = require(Modules:WaitForChild("Bombs"))
+local Bots = require(Modules:WaitForChild("Bots"))
 
 Players.CharacterAutoLoads = false
 
@@ -33,8 +37,12 @@ end)
 
 local roundNumber = 0
 
+local function msg(k, a)
+	return { k = k, a = a }
+end
+
 ----------------------------------------------------------------------
--- Rondes
+-- Rounds
 ----------------------------------------------------------------------
 local function updateAliveCount()
 	local n = 0
@@ -52,16 +60,20 @@ end
 
 local function getWins(plr)
 	local ls = plr:FindFirstChild("leaderstats")
-	local w = ls and ls:FindFirstChild("Wins")
-	return w
+	return ls and ls:FindFirstChild("Wins")
 end
 
+-- Scoreboard for everyone: real players plus the bots that have played
 local function sendResult(winner, title)
+	local everyone = Players:GetPlayers()
+	for _, bot in ipairs(Bots.all()) do
+		everyone[#everyone + 1] = bot
+	end
 	local rows = {}
-	for _, plr in ipairs(Players:GetPlayers()) do
+	for _, plr in ipairs(everyone) do
 		local w = getWins(plr)
 		rows[#rows + 1] = {
-			name = plr.DisplayName,
+			name = S.nameOf(plr),
 			wins = w and w.Value or 0,
 			color = plr:GetAttribute("Color"),
 			winner = plr == winner,
@@ -89,10 +101,10 @@ local function endRound(winner, reason)
 		if w then
 			w.Value += 1
 		end
-		title = "🏆 " .. winner.DisplayName .. " wint ronde " .. roundNumber .. "!"
+		title = msg("win_round", { name = S.nameOf(winner), n = roundNumber })
 		Sounds.play("Win")
 	else
-		title = reason or "Gelijkspel!"
+		title = reason or msg("draw")
 	end
 	sendResult(winner, title)
 end
@@ -102,20 +114,33 @@ local function checkRound()
 		return
 	end
 	local count, last = 0, nil
+	local humansInRound, humansAlive = 0, 0
 	for plr in pairs(S.alive) do
 		count += 1
 		last = plr
+		if not S.isBot(plr) then
+			humansAlive += 1
+		end
 	end
+	for _, plr in ipairs(S.roundPlayers) do
+		if not S.isBot(plr) then
+			humansInRound += 1
+		end
+	end
+
 	if #S.roundPlayers >= 2 then
 		if count <= 1 then
 			endRound(last)
+		elseif humansInRound > 0 and humansAlive == 0 then
+			-- all real players are out: don't make them watch the bots for ages
+			endRound(nil, msg("bots_win"))
 		end
 	elseif count == 0 then
-		endRound(nil, "Oef, je bent af!")
+		endRound(nil, msg("solo_out"))
 	elseif #Players:GetPlayers() >= 2 then
-		-- Iemand speelde alleen en er is een tweede speler bij gekomen:
-		-- stop de oefenronde zodat iedereen samen kan beginnen.
-		endRound(nil, "Er doet iemand mee! Nieuwe ronde…")
+		-- someone was practising alone and a second player joined:
+		-- stop the practice round so everyone can start together
+		endRound(nil, msg("new_player"))
 	end
 end
 
@@ -130,7 +155,7 @@ local function onDeath(player)
 	if s and s.held then
 		Bombs.explode(s.held)
 	end
-	Net.announce("💀 Je bent af – kijk mee!", 3, false, player)
+	Net.announce(msg("you_out"), 3, false, player)
 	checkRound()
 end
 
@@ -141,16 +166,16 @@ local function killOnCell(x, z)
 		if hum then
 			hum.Health = 0
 		end
-		onDeath(plr) -- direct, zodat playerOnCell hem niet nog eens vindt
+		onDeath(plr) -- right away, so playerOnCell won't find them again
 		plr = S.playerOnCell(Grid.cellOf, x, z)
 	end
 end
 
--- Na de rondetijd valt de arena van buiten naar binnen dicht
+-- After the round time the arena closes in from the outside
 local function suddenDeath()
 	local myGen = S.gen
 	Net.set("SuddenDeath", true)
-	Net.announce("☠️ SUDDEN DEATH! De muren komen eraan!", 3)
+	Net.announce(msg("sudden_death"), 3)
 	for _, c in ipairs(Grid.spiral()) do
 		if S.roundState ~= "playing" or S.gen ~= myGen then
 			return
@@ -161,7 +186,7 @@ local function suddenDeath()
 			if b then
 				Bombs.explode(b)
 			end
-			task.wait(0.2) -- het blok valt nog
+			task.wait(0.2) -- the block is still falling
 			if S.roundState ~= "playing" or S.gen ~= myGen then
 				return
 			end
@@ -182,47 +207,64 @@ local function colorCharacter(char, color)
 end
 
 local function startRound()
-	local list = Players:GetPlayers()
-	local features = Arena.build(math.min(#list, Config.MAX_PLAYERS))
+	-- who plays: real players first, then bots to fill up to BOT_FILL
+	local humans = Players:GetPlayers()
+	local participants = {}
+	for i = 1, math.min(#humans, Config.MAX_PLAYERS) do
+		participants[i] = humans[i]
+	end
+	for i = Config.MAX_PLAYERS + 1, #humans do
+		Net.announce(msg("arena_full"), 4, true, humans[i])
+	end
+	local botCount = math.max(0, math.min(Config.BOT_FILL, Config.MAX_PLAYERS) - #participants)
+	for _, bot in ipairs(Bots.get(botCount)) do
+		participants[#participants + 1] = bot
+	end
+
+	local features = Arena.build(#participants)
 	Arena.resetToggles(os.clock())
+	Bots.clearCharacters()
 	table.clear(S.alive)
 	table.clear(S.stats)
-	S.roundPlayers = {}
+	S.roundPlayers = participants
 	roundNumber += 1
 	Net.set("Round", roundNumber)
 
-	for _, plr in ipairs(list) do
+	for _, plr in ipairs(humans) do
 		plr:SetAttribute("InRound", false)
 		plr:SetAttribute("Alive", false)
-		plr:SetAttribute("Color", nil)
-		plr:SetAttribute("ColorName", nil)
-		plr:SetAttribute("Curse", nil)
 	end
-	for i = 1, math.min(#list, Config.MAX_PLAYERS) do
-		S.roundPlayers[i] = list[i]
-	end
-	for i = Config.MAX_PLAYERS + 1, #list do
-		Net.announce("De arena is vol – je doet mee in een volgende ronde.", 4, true, list[i])
+	for _, plr in ipairs(participants) do
+		for _, attr in ipairs({ "Color", "ColorName", "Curse" }) do
+			plr:SetAttribute(attr, nil)
+		end
 	end
 
-	for i, plr in ipairs(S.roundPlayers) do
+	local spawns = Grid.spawns()
+	for i, plr in ipairs(participants) do
 		S.stats[plr] = Powerups.newStats()
-		local ok = pcall(function()
-			plr:LoadCharacter()
-		end)
-		local char = ok and plr.Character
+		local c = spawns[i]
+		local spawnCf = CFrame.new(Grid.cellPos(c[1], c[2]) + Vector3.new(0, 3, 0))
+		local char
+		if S.isBot(plr) then
+			char = Bots.spawn(plr, spawnCf)
+		else
+			local ok = pcall(function()
+				plr:LoadCharacter()
+			end)
+			char = ok and plr.Character
+		end
 		if char then
 			local root = char:WaitForChild("HumanoidRootPart", 5)
 			local hum = char:WaitForChild("Humanoid", 5)
 			if root and hum then
-				local c = Grid.spawns()[i]
 				local pc = Config.PLAYER_COLORS[i]
-				char:PivotTo(CFrame.new(Grid.cellPos(c[1], c[2]) + Vector3.new(0, 3, 0)))
+				char:PivotTo(spawnCf)
 				hum.UseJumpPower = true
 				hum.JumpPower = 0
 				colorCharacter(char, pc.color)
 				plr:SetAttribute("Color", pc.color)
-				plr:SetAttribute("ColorName", pc.name)
+				plr:SetAttribute("ColorName", pc.name) -- a Lang key, e.g. "color_1"
 				plr:SetAttribute("InRound", true)
 				setAlive(plr, true)
 				S.stats[plr].invulUntil = os.clock() + 2
@@ -241,13 +283,13 @@ local function startRound()
 	Net.set("RoundEndsAt", workspace:GetServerTimeNow() + Config.ROUND_TIME)
 	Net.set("SuddenDeath", false)
 	Net.set("State", "playing")
-	Net.announce("GO! 💣", 1.5)
+	Net.announce(msg("go"), 1.5)
+	Sounds.play("Go")
 	if #features > 0 then
 		task.delay(1.6, function()
-			Net.announce("Deze ronde: " .. table.concat(features, ", "), 3, true)
+			Net.announce(msg("this_round", { list = features }), 3, true)
 		end)
 	end
-	Sounds.play("Go")
 	checkRound()
 end
 
@@ -259,7 +301,7 @@ task.spawn(function()
 		S.roundState = "lobby"
 		Net.set("State", "lobby")
 		for i = 3, 1, -1 do
-			Net.announce("Ronde begint over " .. i .. "…", 1)
+			Net.announce(msg("countdown", { n = i }), 1)
 			Sounds.play("Beep")
 			task.wait(1)
 		end
@@ -279,7 +321,7 @@ task.spawn(function()
 end)
 
 ----------------------------------------------------------------------
--- Spelers
+-- Players
 ----------------------------------------------------------------------
 Players.PlayerAdded:Connect(function(plr)
 	local ls = Instance.new("Folder")
@@ -299,15 +341,15 @@ Players.PlayerRemoving:Connect(function(plr)
 	end
 	S.alive[plr] = nil
 	S.stats[plr] = nil
-	-- (de speler blijft in roundPlayers staan, zodat de laatste overblijver wint)
+	-- (the player stays in roundPlayers, so the last one standing still wins)
 	updateAliveCount()
 	checkRound()
 end)
 
 ----------------------------------------------------------------------
--- Hoofdlus
+-- Main loop
 ----------------------------------------------------------------------
--- Warpzones: wie (bijna) in het midden van een warp staat, komt bij de andere uit
+-- Warp zones: whoever stands (almost) in the middle of a warp comes out at the other one
 local function updateWarps(now)
 	if next(S.warps) == nil then
 		return
@@ -315,18 +357,18 @@ local function updateWarps(now)
 	for plr in pairs(S.alive) do
 		local s = S.stats[plr]
 		local root = S.getRoot(plr)
-		if s and root then
+		local char = S.charOf(plr)
+		if s and root and char then
 			local x, z = Grid.cellOf(root.Position)
 			local k = Grid.key(x, z)
 			if s.warpCell and s.warpCell ~= k then
-				s.warpCell = nil -- van de warp af gestapt: hij werkt weer
+				s.warpCell = nil -- stepped off the warp: it works again
 			end
 			local w = S.warps[k]
 			if w and not s.warpCell and now >= (s.warpReady or 0) and not S.terrain[k] and not S.terrain[Grid.key(w.x, w.z)] then
 				local c = Grid.cellPos(x, z)
 				local off = Vector3.new(root.Position.X - c.X, 0, root.Position.Z - c.Z)
 				if off.Magnitude < Grid.T * 0.3 then
-					local char = plr.Character
 					local look = root.CFrame.LookVector
 					local dest = Grid.cellPos(w.x, w.z) + Vector3.new(0, root.Position.Y, 0)
 					char:PivotTo(CFrame.lookAt(dest, dest + Vector3.new(look.X, 0, look.Z)))
@@ -346,8 +388,9 @@ RunService.Heartbeat:Connect(function(dt)
 	Powerups.update(now)
 	Arena.updateToggles(now)
 	updateWarps(now)
+	Bots.update(now, dt)
 
-	-- 💩-vloek: legt vanzelf bommen
+	-- 💩 curse: drops bombs by itself
 	for plr in pairs(S.alive) do
 		local s = S.stats[plr]
 		if s and s.curse == "autobomb" then

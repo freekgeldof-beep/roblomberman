@@ -1,4 +1,4 @@
--- Goodies: wat ze doen, verschijnen, oppakken en de 💀-vloeken
+-- Goodies: what they do, spawning, picking them up, and the 💀 curses
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
@@ -9,41 +9,36 @@ local Sounds = require(script.Parent.Sounds)
 
 local Powerups = {}
 
-local CURSES = {
-	slow = "🐌 Vervloekt: supertraag!",
-	nobombs = "🚫 Vervloekt: je kunt geen bommen leggen!",
-	autobomb = "💩 Vervloekt: je legt vanzelf bommen!",
-}
+-- Curse kinds; the text shown to players is the Lang key "curse_<kind>"
 local CURSE_KINDS = { "slow", "nobombs", "autobomb" }
-Powerups.CURSES = CURSES
 
 local DEFS = {
 	Range = {
-		emoji = "🔥", name = "Vuurbereik +1", color = Color3.fromRGB(255, 120, 40), weight = 25,
+		emoji = "🔥", color = Color3.fromRGB(255, 120, 40), weight = 25,
 		apply = function(s) s.range = math.min(s.range + 1, Config.MAX_RANGE) end,
 	},
 	Bomb = {
-		emoji = "💣", name = "Extra bom", color = Color3.fromRGB(90, 90, 110), weight = 25,
+		emoji = "💣", color = Color3.fromRGB(90, 90, 110), weight = 25,
 		apply = function(s) s.maxBombs = math.min(s.maxBombs + 1, Config.MAX_BOMBS) end,
 	},
 	Speed = {
-		emoji = "👟", name = "Sneller lopen", color = Color3.fromRGB(80, 200, 255), weight = 15,
+		emoji = "👟", color = Color3.fromRGB(80, 200, 255), weight = 15,
 		apply = function(s) s.speed = math.min(s.speed + Config.SPEED_STEP, Config.MAX_SPEED) end,
 	},
 	Pierce = {
-		emoji = "⚡", name = "Doorboor-bommen (vuur breekt door kisten)", color = Color3.fromRGB(255, 230, 60), weight = 10,
+		emoji = "⚡", color = Color3.fromRGB(255, 230, 60), weight = 10,
 		apply = function(s) s.pierce = true end,
 	},
 	Throw = {
-		emoji = "🧤", name = "Handschoen: bommen gooien (E)", color = Color3.fromRGB(120, 255, 120), weight = 12,
+		emoji = "🧤", color = Color3.fromRGB(120, 255, 120), weight = 12,
 		apply = function(s) s.throw = true end,
 	},
 	Kick = {
-		emoji = "🦶", name = "Schopschoen: loop tegen een bom om hem weg te schoppen", color = Color3.fromRGB(255, 150, 220), weight = 12,
+		emoji = "🦶", color = Color3.fromRGB(255, 150, 220), weight = 12,
 		apply = function(s) s.kick = true end,
 	},
 	Skull = {
-		emoji = "💀", name = "Vloek", color = Color3.fromRGB(150, 60, 200), weight = 8,
+		emoji = "💀", color = Color3.fromRGB(150, 60, 200), weight = 8,
 		apply = function(s)
 			s.curse = CURSE_KINDS[math.random(#CURSE_KINDS)]
 			s.curseUntil = os.clock() + Config.CURSE_TIME
@@ -96,7 +91,7 @@ function Powerups.sync(player)
 	player:SetAttribute("Pierce", s.pierce)
 	player:SetAttribute("Throw", s.throw)
 	player:SetAttribute("Kick", s.kick)
-	player:SetAttribute("Curse", s.curse and CURSES[s.curse] or nil)
+	player:SetAttribute("Curse", s.curse and ("curse_" .. s.curse) or nil)
 	local hum = S.getHum(player)
 	if hum then
 		hum.WalkSpeed = s.curse == "slow" and Config.CURSE_SLOW_SPEED or s.speed
@@ -140,7 +135,7 @@ function Powerups.spawn(x, z, kind)
 	S.powerups[Grid.key(x, z)] = { part = p, kind = kind }
 end
 
--- Elke frame: goodies oppakken en vloeken laten aflopen
+-- Every frame: pick up goodies and let curses run out
 function Powerups.update(now)
 	for plr in pairs(S.alive) do
 		local root = S.getRoot(plr)
@@ -155,17 +150,17 @@ function Powerups.update(now)
 				Powerups.remove(k)
 				Powerups.sync(plr)
 				if pu.kind == "Skull" then
-					Net.announce(CURSES[s.curse], 2.5, true, plr)
+					Net.announce({ k = "curse_" .. s.curse }, 2.5, true, plr)
 					Sounds.play("Curse", root.Position)
 				else
-					Net.announce(def.emoji .. " " .. def.name, 1.8, true, plr)
+					Net.announce({ k = "pu_" .. pu.kind }, 1.8, true, plr)
 					Sounds.play("Pickup", root.Position)
 				end
 			end
 			if s.curse and now >= s.curseUntil then
 				s.curse = nil
 				Powerups.sync(plr)
-				Net.announce("✨ De vloek is voorbij", 1.8, true, plr)
+				Net.announce({ k = "curse_over" }, 1.8, true, plr)
 			end
 		end
 	end

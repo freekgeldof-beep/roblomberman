@@ -1,4 +1,4 @@
--- RemoteEvents en ronde-informatie voor de clients
+-- RemoteEvents and round info for the clients
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Net = {}
@@ -16,16 +16,19 @@ end
 
 Net.PlaceBomb = newRemote("PlaceBomb")
 Net.ThrowBomb = newRemote("ThrowBomb")
-Net.Announce = newRemote("Announce") -- (tekst, seconden, klein?)
-Net.RoundResult = newRemote("RoundResult") -- (titel, rijen)
+Net.Announce = newRemote("Announce") -- (message, seconds, small?) – message is a Lang key table
+Net.RoundResult = newRemote("RoundResult") -- (title message, rows, seconds)
 
--- Ronde-info als attributen op de map: State, RoundEndsAt, SuddenDeath, AliveCount, Round
+-- Round info as attributes on the folder: State, RoundEndsAt, SuddenDeath, AliveCount,
+-- Round, ArenaW, ArenaH, Belts
 folder:SetAttribute("State", "lobby")
 folder.Parent = ReplicatedStorage
 
 function Net.announce(text, seconds, small, player)
 	if player then
-		Net.Announce:FireClient(player, text, seconds or 3, small)
+		if player:IsA("Player") then -- bots have no screen
+			Net.Announce:FireClient(player, text, seconds or 3, small)
+		end
 	else
 		Net.Announce:FireAllClients(text, seconds or 3, small)
 	end

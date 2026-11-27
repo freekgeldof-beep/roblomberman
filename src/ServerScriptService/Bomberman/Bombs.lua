@@ -1,4 +1,4 @@
--- Bommen: leggen, gooien, schoppen, ontploffen en het vuur
+-- Bombs: placing, throwing, kicking, exploding, and the fire
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -16,10 +16,10 @@ local BOMB_Y = Vector3.new(0, 1.6, 0)
 local Bombs = {}
 
 ----------------------------------------------------------------------
--- Hulpjes
+-- Helpers
 ----------------------------------------------------------------------
 
--- Wordt dit vakje al gebruikt als landingsplek van een gegooide bom?
+-- Is this cell already the landing spot of a thrown bomb?
 local function isTargeted(x, z)
 	for b in pairs(S.bombs) do
 		if b.state == "flying" and b.x == x and b.z == z then
@@ -29,7 +29,7 @@ local function isTargeted(x, z)
 	return false
 end
 
--- Vrij vakje voor een bom: geen muur/kist, geen andere bom (en eventueel geen speler)
+-- Free cell for a bomb: no wall/crate, no other bomb (and optionally no player)
 local function cellFree(x, z, checkPlayers)
 	if not Grid.inBounds(x, z) then
 		return false
@@ -54,7 +54,7 @@ local function newBombPart()
 	p.Anchored = true
 	p.CanCollide = false
 
-	-- Alleen de mesh pulseert; de botsingsvorm van het onderdeel blijft gelijk
+	-- Only the mesh pulses; the part's collision shape stays the same
 	local mesh = Instance.new("SpecialMesh")
 	mesh.MeshType = Enum.MeshType.Sphere
 	mesh.Parent = p
@@ -124,7 +124,7 @@ local function spawnFlame(x, z)
 end
 
 ----------------------------------------------------------------------
--- Ontploffen
+-- Exploding
 ----------------------------------------------------------------------
 function Bombs.explode(bomb)
 	if bomb.exploded then
@@ -149,7 +149,7 @@ function Bombs.explode(bomb)
 	local center = bomb.part.Position
 	bomb.part:Destroy()
 
-	-- Roblox-ontploffing alleen voor beeld en geluid (doet geen schade)
+	-- Roblox explosion just for looks and sound (does no damage)
 	local e = Instance.new("Explosion")
 	e.Position = center
 	e.BlastRadius = 3
@@ -204,7 +204,7 @@ function Bombs.explode(bomb)
 end
 
 ----------------------------------------------------------------------
--- Acties van spelers
+-- Player actions
 ----------------------------------------------------------------------
 local function rateLimited(s)
 	if os.clock() - s.lastAction < 0.15 then
@@ -214,7 +214,7 @@ local function rateLimited(s)
 	return false
 end
 
--- force = true: voor de "vanzelf bommen"-vloek (geen limiet op tempo)
+-- force = true: for the "auto bombs" curse and bots (no rate limit)
 function Bombs.place(player, force)
 	local s = S.stats[player]
 	if not s or not S.alive[player] or S.roundState ~= "playing" then
@@ -259,13 +259,16 @@ function Bombs.throw(player)
 	if s.held then
 		local bomb = s.held
 		local tx, tz
-		for step = Config.THROW_DISTANCE, math.max(Grid.W, Grid.H) do
+		local wrapped = false
+		-- If the bomb flies over the outer wall, it comes back in on the opposite side
+		local size = dx ~= 0 and Grid.W or Grid.H
+		for step = Config.THROW_DISTANCE, size - 1 do
 			local cx, cz = sx + dx * step, sz + dz * step
-			if not Grid.inBounds(cx, cz) then
-				break
-			end
+			local w = not Grid.inBounds(cx, cz)
+			cx = (cx - 1) % Grid.W + 1
+			cz = (cz - 1) % Grid.H + 1
 			if cellFree(cx, cz, false) then
-				tx, tz = cx, cz
+				tx, tz, wrapped = cx, cz, w
 				break
 			end
 		end
@@ -285,13 +288,35 @@ function Bombs.throw(player)
 		bomb.holder = nil
 		bomb.state = "flying"
 		bomb.solid = false
-		-- Let op: tijdens de vlucht staat de bom NIET in bombAt, zodat vuur hem
-		-- niet in de lucht laat ontploffen. Hij landt op (x, z).
+		-- Note: while flying the bomb is NOT in bombAt, so fire can't
+		-- set it off in mid-air. It lands on (x, z).
 		bomb.x, bomb.z = tx, tz
-		bomb.from = bomb.part.Position
-		bomb.to = Grid.cellPos(tx, tz) + BOMB_Y
+		local from = bomb.part.Position
+		local to = Grid.cellPos(tx, tz) + BOMB_Y
+		if wrapped then
+			-- two pieces: to just past the edge, then from the opposite side to the target
+			local ex = dx > 0 and Grid.W + 1.5 or dx < 0 and -0.5 or 0
+			local ez = dz > 0 and Grid.H + 1.5 or dz < 0 and -0.5 or 0
+			local exitPos, entryPos
+			if dx ~= 0 then
+				exitPos = Vector3.new(Grid.cellPos(ex, sz).X, from.Y, from.Z)
+				entryPos = Vector3.new(Grid.cellPos(dx > 0 and -0.5 or Grid.W + 1.5, sz).X, to.Y, to.Z)
+			else
+				exitPos = Vector3.new(from.X, from.Y, Grid.cellPos(sx, ez).Z)
+				entryPos = Vector3.new(to.X, to.Y, Grid.cellPos(sx, dz > 0 and -0.5 or Grid.H + 1.5).Z)
+			end
+			bomb.path = { { from, exitPos, "up" }, { entryPos, to, "down" } }
+		else
+			bomb.path = { { from, to, "arc" } }
+		end
+		local len = 0
+		for _, seg in ipairs(bomb.path) do
+			len += (seg[2] - seg[1]).Magnitude
+		end
+		bomb.pathLen = len
 		bomb.t0 = os.clock()
-		bomb.dur = math.max(0.35, (bomb.to - bomb.from).Magnitude / Config.THROW_SPEED)
+		bomb.dur = math.max(0.35, len / Config.THROW_SPEED)
+		bomb.from = from
 		Sounds.play("Throw", bomb.from)
 	else
 		for _, c in ipairs({ { sx, sz }, { sx + dx, sz + dz } }) do
@@ -310,7 +335,7 @@ function Bombs.throw(player)
 	end
 end
 
--- Laat een bom glijden. oneStep = true: maar één vakje (lopende band)
+-- Make a bomb slide. oneStep = true: only one cell (conveyor belt)
 local function startSlide(bomb, dx, dz, speed, oneStep)
 	if not cellFree(bomb.x + dx, bomb.z + dz, true) then
 		return false
@@ -331,7 +356,7 @@ local function kick(bomb, dx, dz)
 	end
 end
 
--- Komt een glijdende bom op een warp, dan komt hij bij de andere warp uit
+-- A sliding bomb that reaches a warp comes out at the other warp
 local function warpBomb(bomb)
 	local w = S.warps[key(bomb.x, bomb.z)]
 	if w and not S.terrain[key(w.x, w.z)] and cellFree(w.x, w.z, false) then
@@ -344,7 +369,7 @@ local function warpBomb(bomb)
 	end
 end
 
--- Spelers met de schopschoen die tegen een bom aan lopen, schoppen hem weg
+-- Players with the kick shoe who walk into a bomb kick it away
 local function checkKicks()
 	for plr in pairs(S.alive) do
 		local s = S.stats[plr]
@@ -367,7 +392,7 @@ local function checkKicks()
 end
 
 ----------------------------------------------------------------------
--- Elke frame
+-- Every frame
 ----------------------------------------------------------------------
 function Bombs.update(now, dt)
 	checkKicks()
@@ -389,11 +414,29 @@ function Bombs.update(now, dt)
 				end
 			elseif bomb.state == "flying" then
 				local a = math.clamp((now - bomb.t0) / bomb.dur, 0, 1)
-				bomb.part.Position = bomb.from:Lerp(bomb.to, a) + Vector3.new(0, math.sin(math.pi * a) * 6, 0)
+				-- find which piece of the path the bomb is on
+				local dist = a * bomb.pathLen
+				for _, seg in ipairs(bomb.path) do
+					local segLen = math.max((seg[2] - seg[1]).Magnitude, 0.001)
+					if dist <= segLen or seg == bomb.path[#bomb.path] then
+						local f = math.clamp(dist / segLen, 0, 1)
+						local h
+						if seg[3] == "up" then
+							h = math.sin(math.pi / 2 * f) * 12 -- high over the outer wall
+						elseif seg[3] == "down" then
+							h = math.cos(math.pi / 2 * f) * 12
+						else
+							h = math.sin(math.pi * f) * 6
+						end
+						bomb.part.Position = seg[1]:Lerp(seg[2], f) + Vector3.new(0, h, 0)
+						break
+					end
+					dist -= segLen
+				end
 				if a >= 1 then
 					local k = key(bomb.x, bomb.z)
 					if S.terrain[k] or S.bombAt[k] then
-						-- er is intussen een muur of bom op de landingsplek gekomen
+						-- a wall or bomb appeared on the landing spot in the meantime
 						Bombs.explode(bomb)
 					else
 						S.bombAt[k] = bomb
@@ -424,11 +467,11 @@ function Bombs.update(now, dt)
 					bomb.part.Position = here + BOMB_Y
 				end
 			elseif bomb.state == "placed" and S.belts[key(bomb.x, bomb.z)] then
-				-- een bom op een lopende band schuift steeds een vakje mee
+				-- a bomb on a conveyor belt moves along one cell at a time
 				local b = S.belts[key(bomb.x, bomb.z)]
 				startSlide(bomb, b.dx, b.dz, Config.BELT_BOMB_SPEED, true)
 			elseif bomb.state == "placed" and not bomb.solid then
-				-- pas massief als niemand er meer op staat (zo kun je van je eigen bom af lopen)
+				-- only solid once nobody stands on it (so you can walk off your own bomb)
 				local clear = true
 				for plr in pairs(S.alive) do
 					local root = S.getRoot(plr)
@@ -452,7 +495,7 @@ function Bombs.update(now, dt)
 	end
 end
 
--- Vuur doodt spelers die erin staan
+-- Fire kills players standing in it
 function Bombs.updateFlames(now)
 	for i = #S.flames, 1, -1 do
 		local f = S.flames[i]

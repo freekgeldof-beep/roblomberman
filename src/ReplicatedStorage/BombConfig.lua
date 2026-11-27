@@ -1,9 +1,9 @@
--- Gedeelde instellingen (server + client)
+-- Shared settings (server + client)
 return {
-	TILE = 4, -- grootte van één vakje in studs
+	TILE = 4, -- size of one cell in studs
 
-	-- Het veld groeit mee met het aantal spelers (breedte/hoogte in vakjes, altijd oneven).
-	-- Met 1 + een veelvoud van 4 (13, 17, 21, 25) ligt het midden mooi symmetrisch.
+	-- The arena grows with the number of players (width/height in cells, always odd).
+	-- With 1 + a multiple of 4 (13, 17, 21, 25) the middle is nicely symmetrical.
 	ARENA_SIZES = {
 		{ players = 2, w = 13, h = 13 },
 		{ players = 4, w = 17, h = 13 },
@@ -11,14 +11,14 @@ return {
 		{ players = 8, w = 25, h = 17 },
 	},
 
-	CRATE_CHANCE = 0.75, -- kans dat een vrij vakje een kist wordt
-	DROP_CHANCE = 0.4, -- kans dat een kapotte kist een goodie laat vallen
+	CRATE_CHANCE = 0.75, -- chance that a free cell becomes a crate
+	DROP_CHANCE = 0.4, -- chance that a broken crate drops a goodie
 
-	FUSE = 2.6, -- seconden tot een bom ontploft
-	FLAME_TIME = 0.6, -- hoe lang het vuur blijft
-	THROW_DISTANCE = 3, -- minimale gooi-afstand in vakjes
-	THROW_SPEED = 30, -- studs per seconde
-	KICK_SPEED = 9, -- vakjes per seconde voor een geschopte bom
+	FUSE = 2.6, -- seconds until a bomb explodes
+	FLAME_TIME = 0.6, -- how long the fire stays
+	THROW_DISTANCE = 3, -- minimum throw distance in cells
+	THROW_SPEED = 30, -- studs per second
+	KICK_SPEED = 9, -- cells per second for a kicked bomb
 
 	START_BOMBS = 1,
 	START_RANGE = 2,
@@ -28,50 +28,55 @@ return {
 	MAX_SPEED = 26,
 	SPEED_STEP = 2,
 
-	CURSE_TIME = 10, -- seconden dat een 💀-vloek duurt
-	CURSE_SLOW_SPEED = 8, -- loopsnelheid met de "traag"-vloek
+	CURSE_TIME = 10, -- seconds a 💀 curse lasts
+	CURSE_SLOW_SPEED = 8, -- walk speed with the "slow" curse
 
-	ROUND_TIME = 150, -- seconden tot sudden death begint
-	SUDDEN_DEATH_STEP = 0.35, -- seconden tussen twee vallende muurblokken
+	ROUND_TIME = 150, -- seconds until sudden death starts
+	SUDDEN_DEATH_STEP = 0.35, -- seconds between two falling wall blocks
 
-	CORNER_ASSIST = true, -- automatisch de gang in schuiven bij hoeken
-	CORNER_TOLERANCE = 0.7, -- hoe ver (in vakjes) je naast een gang mag staan
+	CORNER_ASSIST = true, -- slide into the corridor automatically at corners
+	CORNER_TOLERANCE = 0.7, -- how far (in cells) you may be off a corridor
 
-	INTERMISSION = 7, -- seconden tussen rondes (eindscherm)
+	INTERMISSION = 7, -- seconds between rounds (scoreboard)
 	MAX_PLAYERS = 8,
 
-	-- Camera: volgt je eigen speler van boven. Zo veel vakjes zie je ongeveer om je heen.
+	-- Computer opponents: bots fill the round up to this many players (0 = no bots)
+	BOT_FILL = 4,
+	BOT_THINK = 0.25, -- seconds between bot decisions (lower = faster, harder)
+	BOT_AGGRESSION = 0.6, -- chance a bot drops a bomb when it has a good spot (0..1)
+
+	-- Camera: follows your own player from above. Roughly this many cells are visible.
 	CAMERA_FOLLOW = true,
 	CAMERA_VIEW_W = 15,
 	CAMERA_VIEW_H = 11,
-	CAMERA_SMOOTH = 6, -- hoe snel de camera bijdraait (hoger = strakker)
+	CAMERA_SMOOTH = 6, -- how fast the camera catches up (higher = tighter)
 
-	-- Bijzondere vakjes. Elke ronde wordt per soort gegooid of hij meedoet,
-	-- zodat elke ronde anders is. Zet een kans op 1 om hem altijd aan te hebben, of op 0 voor uit.
+	-- Special cells. Every round each kind is rolled separately,
+	-- so every round is different. Set a chance to 1 to always have it, or 0 to turn it off.
 	FEATURE_CHANCE = {
-		Warps = 0.75, -- warpzones: stap erop en je komt bij de andere uit
-		Belts = 0.75, -- lopende banden: duwen spelers en bommen mee
-		Toggles = 0.6, -- schakelmuren: gaan om de paar seconden omhoog en omlaag
+		Warps = 0.75, -- warp zones: step on one and come out at the other
+		Belts = 0.75, -- conveyor belts: push players and bombs along
+		Toggles = 0.6, -- switch walls: go up and down every few seconds
 	},
-	WARP_COOLDOWN = 0.6, -- seconden voordat een warp je weer kan wegsturen
-	BELT_SPEED = 7, -- studs per seconde dat een band je meeneemt
-	BELT_BOMB_SPEED = 3, -- vakjes per seconde voor een bom op een band
-	TOGGLE_INTERVAL = 6, -- seconden tussen omhoog en omlaag van schakelmuren
+	WARP_COOLDOWN = 0.6, -- seconds before a warp can send you again
+	BELT_SPEED = 7, -- studs per second a belt carries you
+	BELT_BOMB_SPEED = 3, -- cells per second for a bomb on a belt
+	TOGGLE_INTERVAL = 6, -- seconds between switch walls going up and down
 
 	PLAYER_COLORS = {
-		{ name = "Rood", color = Color3.fromRGB(235, 70, 70) },
-		{ name = "Blauw", color = Color3.fromRGB(70, 140, 255) },
-		{ name = "Geel", color = Color3.fromRGB(255, 210, 60) },
-		{ name = "Groen", color = Color3.fromRGB(80, 210, 100) },
-		{ name = "Paars", color = Color3.fromRGB(170, 90, 240) },
-		{ name = "Oranje", color = Color3.fromRGB(255, 140, 40) },
-		{ name = "Roze", color = Color3.fromRGB(255, 120, 200) },
-		{ name = "Cyaan", color = Color3.fromRGB(60, 220, 230) },
+		{ name = "color_1", color = Color3.fromRGB(235, 70, 70) },
+		{ name = "color_2", color = Color3.fromRGB(70, 140, 255) },
+		{ name = "color_3", color = Color3.fromRGB(255, 210, 60) },
+		{ name = "color_4", color = Color3.fromRGB(80, 210, 100) },
+		{ name = "color_5", color = Color3.fromRGB(170, 90, 240) },
+		{ name = "color_6", color = Color3.fromRGB(255, 140, 40) },
+		{ name = "color_7", color = Color3.fromRGB(255, 120, 200) },
+		{ name = "color_8", color = Color3.fromRGB(60, 220, 230) },
 	},
 
-	-- Geluiden. Vervang een id door een eigen geluid uit de Creator Store
-	-- ("rbxassetid://123..."), of zet hem op "" om dat geluid uit te zetten.
-	-- De ontploffing zelf komt van Roblox' eigen Explosion-effect.
+	-- Sounds. Replace an id with your own sound from the Creator Store
+	-- ("rbxassetid://123..."), or set it to "" to turn that sound off.
+	-- The explosion itself uses Roblox's own Explosion effect.
 	SOUNDS = {
 		Place = { id = "rbxasset://sounds/button.wav", volume = 0.6 },
 		Throw = { id = "rbxasset://sounds/swoosh.wav", volume = 0.7 },
@@ -85,6 +90,6 @@ return {
 		Win = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.9, speed = 1.5 },
 		Warp = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.7, speed = 0.8 },
 		Toggle = { id = "rbxasset://sounds/action_jump_land.mp3", volume = 0.4, speed = 1.3 },
-		Explosion = { id = "", volume = 0.8 }, -- optioneel: extra ontploffingsgeluid
+		Explosion = { id = "", volume = 0.8 }, -- optional: extra explosion sound
 	},
 }

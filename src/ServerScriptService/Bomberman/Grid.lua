@@ -1,5 +1,5 @@
--- Rooster-hulpfuncties: van vakje naar positie en terug.
--- De grootte kan per ronde veranderen (Grid.setSize), afhankelijk van het aantal spelers.
+-- Grid helpers: from cell to position and back.
+-- The size can change every round (Grid.setSize), depending on the number of players.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
 
@@ -14,7 +14,7 @@ local Grid = {
 
 local originX, originZ = 0, 0
 
--- Dichtstbijzijnde oneven getal (in oneven rijen/kolommen staan nooit vaste muren)
+-- Nearest odd number (odd rows/columns never have fixed walls)
 function Grid.odd(v)
 	return math.floor((v - 1) / 2 + 0.5) * 2 + 1
 end
@@ -23,11 +23,11 @@ function Grid.setSize(w, h)
 	Grid.W, Grid.H = w, h
 	originX = -(w - 1) * T / 2
 	originZ = -(h - 1) * T / 2
-	Grid.XM, Grid.ZM = Grid.odd((w + 1) / 2), Grid.odd((h + 1) / 2) -- midden
+	Grid.XM, Grid.ZM = Grid.odd((w + 1) / 2), Grid.odd((h + 1) / 2) -- middle
 end
 Grid.setSize(Grid.W, Grid.H)
 
--- Kies de arenagrootte bij het aantal spelers
+-- Pick the arena size for the number of players
 function Grid.sizeFor(playerCount)
 	for _, row in ipairs(Config.ARENA_SIZES) do
 		if playerCount <= row.players then
@@ -38,7 +38,7 @@ function Grid.sizeFor(playerCount)
 	return last.w, last.h
 end
 
--- Startplekken: eerst de vier hoeken, daarna het midden van elke rand
+-- Spawn points: the four corners first, then the middle of each edge
 function Grid.spawns()
 	local W, H, XM, ZM = Grid.W, Grid.H, Grid.XM, Grid.ZM
 	return {
@@ -67,7 +67,7 @@ function Grid.inBounds(x, z)
 	return x >= 1 and x <= Grid.W and z >= 1 and z <= Grid.H
 end
 
--- Hoofdrichting (één as) van een vector, bijv. kijk- of looprichting
+-- Main direction (one axis) of a vector, e.g. look or walk direction
 function Grid.axisDir(v)
 	if math.abs(v.X) > math.abs(v.Z) then
 		return v.X > 0 and 1 or -1, 0
@@ -75,7 +75,7 @@ function Grid.axisDir(v)
 	return 0, v.Z > 0 and 1 or -1
 end
 
--- Alle vakjes in een spiraal van buiten naar binnen (voor sudden death)
+-- All cells in a spiral from the outside in (for sudden death)
 function Grid.spiral()
 	local out = {}
 	local x1, z1, x2, z2 = 1, 1, Grid.W, Grid.H

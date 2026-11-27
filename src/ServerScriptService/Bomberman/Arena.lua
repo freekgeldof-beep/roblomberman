@@ -1,5 +1,5 @@
--- Arena: vloer, muren, kisten, bijzondere vakjes (warps, banden, schakelmuren)
--- en de muren die vallen tijdens sudden death
+-- Arena: floor, walls, crates, special cells (warps, belts, switch walls),
+-- the random theme of each round and the walls that drop during sudden death
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -14,11 +14,56 @@ local T = Grid.T
 local key = Grid.key
 local Arena = {}
 
-local WALL_COLOR = Color3.fromRGB(110, 110, 120)
+local Lighting = game:GetService("Lighting")
+
+-- Themes: each round picks one at random so the arena doesn't always look the same
+local THEMES = {
+	{
+		name = "Grass",
+		floor = { Color3.fromRGB(96, 168, 90), Color3.fromRGB(80, 148, 76) }, floorMat = Enum.Material.Grass,
+		wall = Color3.fromRGB(110, 110, 120), wallMat = Enum.Material.Concrete,
+		crate = Color3.fromRGB(176, 124, 70), crateMat = Enum.Material.WoodPlanks,
+		rim = Color3.fromRGB(60, 60, 72), rimMat = Enum.Material.Slate,
+		clock = 14, ambient = Color3.fromRGB(110, 110, 110),
+	},
+	{
+		name = "Desert",
+		floor = { Color3.fromRGB(226, 196, 132), Color3.fromRGB(212, 180, 116) }, floorMat = Enum.Material.Sand,
+		wall = Color3.fromRGB(176, 120, 80), wallMat = Enum.Material.Sandstone,
+		crate = Color3.fromRGB(120, 160, 80), crateMat = Enum.Material.Grass, -- cactus-coloured bushes
+		rim = Color3.fromRGB(150, 100, 64), rimMat = Enum.Material.Sandstone,
+		clock = 16.5, ambient = Color3.fromRGB(140, 120, 100),
+	},
+	{
+		name = "Snow",
+		floor = { Color3.fromRGB(235, 242, 250), Color3.fromRGB(215, 228, 242) }, floorMat = Enum.Material.Snow,
+		wall = Color3.fromRGB(140, 190, 230), wallMat = Enum.Material.Ice,
+		crate = Color3.fromRGB(190, 120, 80), crateMat = Enum.Material.WoodPlanks,
+		rim = Color3.fromRGB(110, 150, 190), rimMat = Enum.Material.Glacier,
+		clock = 12, ambient = Color3.fromRGB(150, 160, 180),
+	},
+	{
+		name = "Lava",
+		floor = { Color3.fromRGB(70, 60, 60), Color3.fromRGB(58, 50, 50) }, floorMat = Enum.Material.Basalt,
+		wall = Color3.fromRGB(40, 36, 40), wallMat = Enum.Material.Basalt,
+		crate = Color3.fromRGB(200, 80, 30), crateMat = Enum.Material.CrackedLava,
+		rim = Color3.fromRGB(255, 90, 20), rimMat = Enum.Material.Neon,
+		clock = 19, ambient = Color3.fromRGB(120, 70, 60),
+	},
+	{
+		name = "Space",
+		floor = { Color3.fromRGB(40, 36, 70), Color3.fromRGB(32, 28, 58) }, floorMat = Enum.Material.SmoothPlastic,
+		wall = Color3.fromRGB(120, 110, 200), wallMat = Enum.Material.Metal,
+		crate = Color3.fromRGB(80, 200, 220), crateMat = Enum.Material.Glass,
+		rim = Color3.fromRGB(170, 80, 255), rimMat = Enum.Material.Neon,
+		clock = 0, ambient = Color3.fromRGB(110, 100, 150),
+	},
+}
+local theme = THEMES[1]
 local WARP_COLORS = { Color3.fromRGB(170, 80, 255), Color3.fromRGB(40, 220, 255) }
 local TOGGLE_COLOR = Color3.fromRGB(230, 90, 60)
 
--- Vakjes rond de startplekken blijven leeg, zodat je niet vast zit
+-- Cells around the spawn points stay empty so nobody starts boxed in
 local function isSafe(x, z, spawns)
 	for _, c in ipairs(spawns) do
 		local ax, az = math.abs(x - c[1]), math.abs(z - c[2])
@@ -45,7 +90,7 @@ local function makePart(size, pos, color, material)
 end
 
 ----------------------------------------------------------------------
--- Bijzondere vakjes kiezen (houden rekening met de veldgrootte)
+-- Planning the special cells (they scale with the arena size)
 ----------------------------------------------------------------------
 local function planWarps(reserved)
 	local W, H = Grid.W, Grid.H
@@ -65,7 +110,7 @@ end
 
 local function planBelts(reserved)
 	local W, H, XM, ZM = Grid.W, Grid.H, Grid.XM, Grid.ZM
-	-- één band door de middelste rij, en in grote velden ook één door de middelste kolom
+	-- one belt through the middle row, and in big arenas one through the middle column too
 	local dx = math.random() < 0.5 and 1 or -1
 	for x = 3, W - 2 do
 		local k = key(x, ZM)
@@ -104,7 +149,7 @@ local function planToggles(reserved)
 end
 
 ----------------------------------------------------------------------
--- Onderdelen bouwen
+-- Building the parts
 ----------------------------------------------------------------------
 local function buildWarp(x, z, pair)
 	local color = WARP_COLORS[pair] or WARP_COLORS[1]
@@ -120,7 +165,7 @@ local function buildWarp(x, z, pair)
 	pe.Rate = 18
 	pe.Lifetime = NumberRange.new(0.6, 1)
 	pe.Speed = NumberRange.new(4, 6)
-	pe.EmissionDirection = Enum.NormalId.Right -- door de draaiing is dit "omhoog"
+	pe.EmissionDirection = Enum.NormalId.Right -- because of the rotation this is "up"
 	pe.SpreadAngle = Vector2.new(15, 15)
 	pe.LightEmission = 1
 	pe.Color = ColorSequence.new(color)
@@ -134,7 +179,7 @@ local function buildBelt(x, z, b)
 	base.Name = "Belt"
 	base.CanCollide = false
 	base.CanQuery = false
-	-- een gloeiende streep die in de looprichting over de band schuift
+	-- glowing stripes that slide over the belt in its direction
 	local dir = Vector3.new(b.dx, 0, b.dz)
 	local across = b.dx ~= 0 and Vector3.new(0.4, 0.06, T - 0.6) or Vector3.new(T - 0.6, 0.06, 0.4)
 	for i = 0, 1 do
@@ -176,11 +221,16 @@ function Arena.build(playerCount)
 	local W, H = Grid.sizeFor(playerCount)
 	Grid.setSize(W, H)
 
+	theme = THEMES[math.random(#THEMES)]
+	Lighting.ClockTime = theme.clock
+	Lighting.Ambient = theme.ambient
+	Lighting.OutdoorAmbient = theme.ambient
+
 	S.arena = Instance.new("Folder")
 	S.arena.Name = "Arena"
 	S.arena.Parent = workspace
 
-	-- welke bijzondere vakjes doen deze ronde mee?
+	-- pick a theme and the special cells for this round
 	local reserved = {}
 	local features = {}
 	for name, chance in pairs(Config.FEATURE_CHANCE) do
@@ -197,20 +247,19 @@ function Arena.build(playerCount)
 	end
 
 	local spawns = Grid.spawns()
-	local light = Color3.fromRGB(96, 168, 90)
-	local dark = Color3.fromRGB(80, 148, 76)
+	local light, dark = theme.floor[1], theme.floor[2]
 	for x = 1, W do
 		for z = 1, H do
 			local k = key(x, z)
-			local floor = makePart(Vector3.new(T, 1, T), Grid.cellPos(x, z) + Vector3.new(0, -0.5, 0), (x + z) % 2 == 0 and light or dark, Enum.Material.Grass)
+			local floor = makePart(Vector3.new(T, 1, T), Grid.cellPos(x, z) + Vector3.new(0, -0.5, 0), (x + z) % 2 == 0 and light or dark, theme.floorMat)
 			floor.Name = "Floor"
 			if isFixedWall(x, z) then
 				S.terrain[k] = "wall"
-				local w = makePart(Vector3.new(T, T, T), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), WALL_COLOR, Enum.Material.Concrete)
+				local w = makePart(Vector3.new(T, T, T), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), theme.wall, theme.wallMat)
 				w.Name = "Wall"
 			elseif not reserved[k] and not isSafe(x, z, spawns) and math.random() < Config.CRATE_CHANCE then
 				S.terrain[k] = "crate"
-				local c = makePart(Vector3.new(T - 0.1, T - 0.1, T - 0.1), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), Color3.fromRGB(176, 124, 70), Enum.Material.WoodPlanks)
+				local c = makePart(Vector3.new(T - 0.1, T - 0.1, T - 0.1), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), theme.crate, theme.crateMat)
 				c.Name = "Crate"
 				S.crateParts[k] = c
 			end
@@ -231,28 +280,28 @@ function Arena.build(playerCount)
 		buildToggle(tg)
 	end
 
-	-- buitenrand
+	-- outer rim
 	local hw, hh = W * T / 2, H * T / 2
-	local rim = Color3.fromRGB(60, 60, 72)
-	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, -hh - T / 2), rim, Enum.Material.Slate)
-	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, hh + T / 2), rim, Enum.Material.Slate)
-	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(-hw - T / 2, T, 0), rim, Enum.Material.Slate)
-	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(hw + T / 2, T, 0), rim, Enum.Material.Slate)
+	local rim, rimMat = theme.rim, theme.rimMat
+	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, -hh - T / 2), rim, rimMat)
+	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, hh + T / 2), rim, rimMat)
+	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(-hw - T / 2, T, 0), rim, rimMat)
+	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(hw + T / 2, T, 0), rim, rimMat)
 
-	-- de clients hebben de grootte en de banden nodig (camera, hoekhulp, meegeduwd worden)
+	-- clients need the size and the belts (camera, corner assist, being pushed)
 	Net.set("ArenaW", W)
 	Net.set("ArenaH", H)
 	Net.set("Belts", table.concat(beltList, ";"))
 
 	local names = {}
 	if features.Warps then
-		names[#names + 1] = "🌀 warpzones"
+		names[#names + 1] = { k = "feat_warps" }
 	end
 	if features.Belts then
-		names[#names + 1] = "➡️ lopende banden"
+		names[#names + 1] = { k = "feat_belts" }
 	end
 	if features.Toggles then
-		names[#names + 1] = "🧱 schakelmuren"
+		names[#names + 1] = { k = "feat_toggles" }
 	end
 	return names
 end
@@ -282,8 +331,8 @@ function Arena.destroyCrate(x, z)
 end
 
 ----------------------------------------------------------------------
--- Schakelmuren: om de TOGGLE_INTERVAL seconden allemaal omhoog of omlaag.
--- Omhoog gaat alleen als er niemand (en geen bom) op het vakje staat.
+-- Switch walls: every TOGGLE_INTERVAL seconds they all go up or down.
+-- A wall only rises when nobody (and no bomb) is on its cell.
 ----------------------------------------------------------------------
 local togglePhaseUp, nextToggle = false, 0
 
@@ -306,7 +355,7 @@ function Arena.updateToggles(now)
 	for k, tg in pairs(S.toggles) do
 		if tg.pending and not tg.closed then
 			if togglePhaseUp then
-				-- wachten tot het vakje leeg is
+				-- wait until the cell is empty
 				if not S.bombAt[k] and not S.playerOnCell(Grid.cellOf, tg.x, tg.z) then
 					tg.pending = false
 					tg.up = true
@@ -331,7 +380,7 @@ function Arena.updateToggles(now)
 	end
 end
 
--- Sudden death: er valt een muurblok op dit vakje. Geeft false als er al een vaste muur stond.
+-- Sudden death: drop a wall block on this cell. Returns false if a fixed wall was already there.
 function Arena.closeCell(x, z)
 	local k = key(x, z)
 	local tg = S.toggles[k]
