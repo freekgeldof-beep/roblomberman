@@ -1,22 +1,32 @@
 <roblox version="4">
-<Item class="Workspace" referent="RBX1"><Properties><string name="Name">Workspace</string></Properties></Item>
-<Item class="Lighting" referent="RBX2"><Properties><string name="Name">Lighting</string></Properties></Item>
-<Item class="Players" referent="RBX3"><Properties><string name="Name">Players</string></Properties></Item>
-<Item class="ReplicatedStorage" referent="RBX5"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="ModuleScript" referent="RBX4"><Properties>
+<Item class="Workspace" referent="RBX12"><Properties><string name="Name">Workspace</string></Properties></Item>
+<Item class="Lighting" referent="RBX13"><Properties><string name="Name">Lighting</string></Properties></Item>
+<Item class="Players" referent="RBX14"><Properties><string name="Name">Players</string></Properties></Item>
+<Item class="ReplicatedStorage" referent="RBX15"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="ModuleScript" referent="RBX10"><Properties>
 <string name="Name">BombConfig</string>
-<ProtectedString name="Source"><![CDATA[-- Gedeelde instellingen (server + client)
+<ProtectedString name="Source"><![CDATA[-- Shared settings (server + client)
 return {
-	TILE = 4, -- grootte van één vakje in studs
-	WIDTH = 15, -- aantal vakjes (oneven!)
-	HEIGHT = 13, -- aantal vakjes (oneven!)
+	TILE = 4, -- size of one cell in studs
 
-	CRATE_CHANCE = 0.75, -- kans dat een vrij vakje een kist wordt
-	DROP_CHANCE = 0.4, -- kans dat een kapotte kist een goodie laat vallen
+	-- The arena grows with the number of players (width/height in cells, always odd).
+	-- With 1 + a multiple of 4 (13, 17, 21, 25) the middle is nicely symmetrical.
+	ARENA_SIZES = {
+		{ players = 2, w = 13, h = 13 },
+		{ players = 4, w = 17, h = 13 },
+		{ players = 6, w = 21, h = 17 },
+		{ players = 8, w = 25, h = 17 },
+	},
 
-	FUSE = 2.6, -- seconden tot een bom ontploft
-	FLAME_TIME = 0.6, -- hoe lang het vuur blijft
-	THROW_DISTANCE = 3, -- minimale gooi-afstand in vakjes
-	THROW_SPEED = 30, -- studs per seconde
+	CRATE_CHANCE = 0.75, -- chance that a free cell becomes a crate
+	DROP_CHANCE = 0.4, -- chance that a broken crate drops a goodie
+	DEATH_DROP_MAX = 8, -- most goodies a dead player scatters over the arena
+
+	FUSE = 2.6, -- seconds until a bomb explodes
+	FLAME_TIME = 0.6, -- how long the fire stays
+	THROW_DISTANCE = 3, -- minimum throw distance in cells
+	THROW_SPEED = 30, -- studs per second
+	PUNCH_DISTANCE = 3, -- cells a 🥊 punch sends a bomb
+	KICK_SPEED = 9, -- cells per second for a kicked bomb
 
 	START_BOMBS = 1,
 	START_RANGE = 2,
@@ -26,215 +36,1496 @@ return {
 	MAX_SPEED = 26,
 	SPEED_STEP = 2,
 
-	INTERMISSION = 6, -- seconden tussen rondes
-	MAX_PLAYERS = 4,
+	CURSE_TIME = 10, -- seconds a 💀 curse lasts
+	CURSE_SLOW_SPEED = 8, -- walk speed with the "slow" curse
+
+	ROUND_TIME = 150, -- seconds until sudden death starts
+	SUDDEN_DEATH_STEP = 0.35, -- seconds between two falling wall blocks
+
+	CORNER_ASSIST = true, -- slide into the corridor automatically at corners
+	CORNER_TOLERANCE = 0.7, -- how far (in cells) you may be off a corridor
+
+	INTERMISSION = 7, -- seconds between rounds (scoreboard)
+	MATCH_WINS = 3, -- a match is "first to this many round wins" (0 = no matches, just rounds)
+	MAX_PLAYERS = 8,
+
+	-- Computer opponents: bots fill the round up to this many players (0 = no bots)
+	BOT_FILL = 4,
+	BOT_THINK = 0.25, -- seconds between bot decisions (lower = faster, harder)
+	BOT_AGGRESSION = 0.6, -- chance a bot drops a bomb when it has a good spot (0..1)
+
+	-- Camera: follows your own player from above. Roughly this many cells are visible.
+	CAMERA_FOLLOW = true,
+	CAMERA_VIEW_W = 15,
+	CAMERA_VIEW_H = 11,
+	CAMERA_SMOOTH = 6, -- how fast the camera catches up (higher = tighter)
+
+	-- Special cells. Every round each kind is rolled separately,
+	-- so every round is different. Set a chance to 1 to always have it, or 0 to turn it off.
+	FEATURE_CHANCE = {
+		Warps = 0.75, -- warp zones: step on one and come out at the other
+		Belts = 0.75, -- conveyor belts: push players and bombs along
+		Toggles = 0.6, -- switch walls: go up and down every few seconds
+		Ice = 0.5, -- ice patches: you keep sliding when you let go
+	},
+	WARP_COOLDOWN = 0.6, -- seconds before a warp can send you again
+	BELT_SPEED = 7, -- studs per second a belt carries you
+	BELT_BOMB_SPEED = 3, -- cells per second for a bomb on a belt
+	TOGGLE_INTERVAL = 6, -- seconds between switch walls going up and down
+	ICE_SHARE = 0.18, -- share of open cells that turn to ice
+	ICE_GRIP = 1.2, -- how fast you stop sliding on ice (lower = more slippery)
+
+	PLAYER_COLORS = {
+		{ name = "color_1", color = Color3.fromRGB(235, 70, 70) },
+		{ name = "color_2", color = Color3.fromRGB(70, 140, 255) },
+		{ name = "color_3", color = Color3.fromRGB(255, 210, 60) },
+		{ name = "color_4", color = Color3.fromRGB(80, 210, 100) },
+		{ name = "color_5", color = Color3.fromRGB(170, 90, 240) },
+		{ name = "color_6", color = Color3.fromRGB(255, 140, 40) },
+		{ name = "color_7", color = Color3.fromRGB(255, 120, 200) },
+		{ name = "color_8", color = Color3.fromRGB(60, 220, 230) },
+	},
+
+	-- Sounds. Replace an id with your own sound from the Creator Store
+	-- ("rbxassetid://123..."), or set it to "" to turn that sound off.
+	-- The explosion itself uses Roblox's own Explosion effect.
+	SOUNDS = {
+		Place = { id = "rbxasset://sounds/button.wav", volume = 0.6 },
+		Throw = { id = "rbxasset://sounds/swoosh.wav", volume = 0.7 },
+		Kick = { id = "rbxasset://sounds/swoosh.wav", volume = 0.7, speed = 1.4 },
+		Pickup = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.6, speed = 1.2 },
+		Curse = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.7, speed = 0.55 },
+		Wall = { id = "rbxasset://sounds/action_jump_land.mp3", volume = 0.8 },
+		Death = { id = "rbxasset://sounds/uuhhh.mp3", volume = 0.7 },
+		Beep = { id = "rbxasset://sounds/button.wav", volume = 0.8, speed = 0.8 },
+		Go = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.9 },
+		Win = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.9, speed = 1.5 },
+		Warp = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.7, speed = 0.8 },
+		Toggle = { id = "rbxasset://sounds/action_jump_land.mp3", volume = 0.4, speed = 1.3 },
+		Explosion = { id = "", volume = 0.8 }, -- optional: extra explosion sound
+	},
 }
 ]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX11"><Properties>
+<string name="Name">Lang</string>
+<ProtectedString name="Source"><![CDATA[-- Translations. The server never sends finished text to players: it sends a
+-- message key plus arguments, and each client translates it into the language
+-- the player has set in Roblox (LocalizationService.RobloxLocaleId).
+--
+-- Message format: { k = "key", a = { name = "...", n = 3, list = { {k=...}, ... } } }
+-- An argument can itself be a message ({k=...}) or a list of messages, which is
+-- joined with ", ".
+--
+-- To add a language: copy the `en` block, translate it and add the locale
+-- prefix to LOCALE_MAP if it differs from the block name.
+local Lang = {}
+
+local S = {}
+
+S.en = {
+	countdown = "Round starts in {n}…",
+	go = "GO! 💣",
+	this_round = "This round: {list}",
+	feat_warps = "🌀 warp zones",
+	feat_belts = "➡️ conveyor belts",
+	feat_toggles = "🧱 switch walls",
+	arena_full = "The arena is full – you'll join a later round.",
+	you_out = "💀 You're out – watch the rest!",
+	sudden_death = "☠️ SUDDEN DEATH! The walls are closing in!",
+	win_round = "🏆 {name} wins round {n}!",
+	draw = "Draw!",
+	solo_out = "Oops, you're out!",
+	new_player = "Someone joined! New round…",
+	bots_win = "🤖 The bots win this round!",
+	curse_over = "✨ The curse is over",
+	pu_Range = "🔥 Fire range +1",
+	pu_Bomb = "💣 Extra bomb",
+	pu_Speed = "👟 Run faster",
+	pu_Pierce = "⚡ Pierce bombs (fire goes through crates)",
+	pu_Throw = "🧤 Glove: throw bombs (E)",
+	pu_Kick = "🦶 Kick shoe: walk into a bomb to kick it (E ✋)",
+	curse_slow = "🐌 Cursed: super slow!",
+	curse_nobombs = "🚫 Cursed: you can't drop bombs!",
+	curse_autobomb = "💩 Cursed: you drop bombs by yourself!",
+	on = "on",
+	off = "off",
+	help_keys = "Space: drop bomb\nE: pick up / throw bomb (with 🧤)",
+	help_touch = "💣 button: drop bomb\n🧤 button: pick up / throw bomb",
+	sudden_hud = "☠️ SUDDEN DEATH",
+	spectate_out = "👀 You're out – watch along! {n} left.",
+	spectate_wait = "👀 A round is in progress – you'll join the next one.",
+	wins = "Wins",
+	color_1 = "Red", color_2 = "Blue", color_3 = "Yellow", color_4 = "Green",
+	color_5 = "Purple", color_6 = "Orange", color_7 = "Pink", color_8 = "Cyan",
+	feat_ice = "🧊 ice",
+	pu_Punch = "🥊 Boxing glove: punch a bomb over the walls (E)",
+	pu_MaxFire = "🌋 MAX FIRE!",
+	match_win = "🏆🏆 {name} wins the match!",
+	wins_to = "Wins – first to {n}",
+}
+
+S.nl = {
+	countdown = "Ronde begint over {n}…",
+	go = "GO! 💣",
+	this_round = "Deze ronde: {list}",
+	feat_warps = "🌀 warpzones",
+	feat_belts = "➡️ lopende banden",
+	feat_toggles = "🧱 schakelmuren",
+	arena_full = "De arena is vol – je doet mee in een volgende ronde.",
+	you_out = "💀 Je bent af – kijk mee!",
+	sudden_death = "☠️ SUDDEN DEATH! De muren komen eraan!",
+	win_round = "🏆 {name} wint ronde {n}!",
+	draw = "Gelijkspel!",
+	solo_out = "Oef, je bent af!",
+	new_player = "Er doet iemand mee! Nieuwe ronde…",
+	bots_win = "🤖 De bots winnen deze ronde!",
+	curse_over = "✨ De vloek is voorbij",
+	pu_Range = "🔥 Vuurbereik +1",
+	pu_Bomb = "💣 Extra bom",
+	pu_Speed = "👟 Sneller lopen",
+	pu_Pierce = "⚡ Doorboor-bommen (vuur breekt door kisten)",
+	pu_Throw = "🧤 Handschoen: bommen gooien (E)",
+	pu_Kick = "🦶 Schopschoen: loop tegen een bom om hem weg te schoppen (E ✋)",
+	curse_slow = "🐌 Vervloekt: supertraag!",
+	curse_nobombs = "🚫 Vervloekt: je kunt geen bommen leggen!",
+	curse_autobomb = "💩 Vervloekt: je legt vanzelf bommen!",
+	on = "aan",
+	off = "uit",
+	help_keys = "Spatie: bom leggen\nE: bom oppakken / gooien (met 🧤)",
+	help_touch = "💣-knop: bom leggen\n🧤-knop: bom oppakken / gooien",
+	sudden_hud = "☠️ SUDDEN DEATH",
+	spectate_out = "👀 Je bent af – kijk mee! Nog {n} over.",
+	spectate_wait = "👀 Er is een ronde bezig – je doet mee in de volgende.",
+	wins = "Overwinningen",
+	color_1 = "Rood", color_2 = "Blauw", color_3 = "Geel", color_4 = "Groen",
+	color_5 = "Paars", color_6 = "Oranje", color_7 = "Roze", color_8 = "Cyaan",
+	feat_ice = "🧊 ijsvakjes",
+	pu_Punch = "🥊 Bokshandschoen: sla een bom over de muren (E)",
+	pu_MaxFire = "🌋 MAX VUUR!",
+	match_win = "🏆🏆 {name} wint de wedstrijd!",
+	wins_to = "Overwinningen – wie het eerst {n} heeft",
+}
+
+S.es = {
+	countdown = "La ronda empieza en {n}…",
+	go = "¡YA! 💣",
+	this_round = "Esta ronda: {list}",
+	feat_warps = "🌀 portales",
+	feat_belts = "➡️ cintas transportadoras",
+	feat_toggles = "🧱 muros móviles",
+	arena_full = "La arena está llena: jugarás en una próxima ronda.",
+	you_out = "💀 Estás eliminado: ¡mira el resto!",
+	sudden_death = "☠️ ¡MUERTE SÚBITA! ¡Los muros se cierran!",
+	win_round = "🏆 ¡{name} gana la ronda {n}!",
+	draw = "¡Empate!",
+	solo_out = "¡Uy, estás eliminado!",
+	new_player = "¡Alguien se ha unido! Nueva ronda…",
+	bots_win = "🤖 ¡Los bots ganan esta ronda!",
+	curse_over = "✨ La maldición ha terminado",
+	pu_Range = "🔥 Alcance de fuego +1",
+	pu_Bomb = "💣 Bomba extra",
+	pu_Speed = "👟 Correr más rápido",
+	pu_Pierce = "⚡ Bombas perforantes (el fuego atraviesa cajas)",
+	pu_Throw = "🧤 Guante: lanza bombas (E)",
+	pu_Kick = "🦶 Bota: camina contra una bomba para patearla (E ✋)",
+	curse_slow = "🐌 Maldito: ¡súper lento!",
+	curse_nobombs = "🚫 Maldito: ¡no puedes poner bombas!",
+	curse_autobomb = "💩 Maldito: ¡pones bombas sin querer!",
+	on = "sí",
+	off = "no",
+	help_keys = "Espacio: poner bomba\nE: coger / lanzar bomba (con 🧤)",
+	help_touch = "Botón 💣: poner bomba\nBotón 🧤: coger / lanzar bomba",
+	sudden_hud = "☠️ MUERTE SÚBITA",
+	spectate_out = "👀 Estás eliminado: ¡mira! Quedan {n}.",
+	spectate_wait = "👀 Hay una ronda en curso: jugarás en la siguiente.",
+	wins = "Victorias",
+	color_1 = "Rojo", color_2 = "Azul", color_3 = "Amarillo", color_4 = "Verde",
+	color_5 = "Morado", color_6 = "Naranja", color_7 = "Rosa", color_8 = "Cian",
+	feat_ice = "🧊 hielo",
+	pu_Punch = "🥊 Guante de boxeo: golpea una bomba por encima de los muros (E)",
+	pu_MaxFire = "🌋 ¡FUEGO MÁXIMO!",
+	match_win = "🏆🏆 ¡{name} gana la partida!",
+	wins_to = "Victorias – gana quien llegue a {n}",
+}
+
+S.pt = {
+	countdown = "A rodada começa em {n}…",
+	go = "VAI! 💣",
+	this_round = "Nesta rodada: {list}",
+	feat_warps = "🌀 portais",
+	feat_belts = "➡️ esteiras",
+	feat_toggles = "🧱 paredes móveis",
+	arena_full = "A arena está cheia – você entra numa próxima rodada.",
+	you_out = "💀 Você foi eliminado – assista ao resto!",
+	sudden_death = "☠️ MORTE SÚBITA! As paredes estão fechando!",
+	win_round = "🏆 {name} venceu a rodada {n}!",
+	draw = "Empate!",
+	solo_out = "Ops, você foi eliminado!",
+	new_player = "Alguém entrou! Nova rodada…",
+	bots_win = "🤖 Os bots venceram esta rodada!",
+	curse_over = "✨ A maldição acabou",
+	pu_Range = "🔥 Alcance do fogo +1",
+	pu_Bomb = "💣 Bomba extra",
+	pu_Speed = "👟 Correr mais rápido",
+	pu_Pierce = "⚡ Bombas perfurantes (o fogo atravessa caixas)",
+	pu_Throw = "🧤 Luva: arremesse bombas (E)",
+	pu_Kick = "🦶 Chute: ande contra uma bomba para chutá-la (E ✋)",
+	curse_slow = "🐌 Amaldiçoado: super lento!",
+	curse_nobombs = "🚫 Amaldiçoado: você não pode colocar bombas!",
+	curse_autobomb = "💩 Amaldiçoado: você solta bombas sozinho!",
+	on = "sim",
+	off = "não",
+	help_keys = "Espaço: colocar bomba\nE: pegar / arremessar bomba (com 🧤)",
+	help_touch = "Botão 💣: colocar bomba\nBotão 🧤: pegar / arremessar bomba",
+	sudden_hud = "☠️ MORTE SÚBITA",
+	spectate_out = "👀 Você foi eliminado – assista! Restam {n}.",
+	spectate_wait = "👀 Uma rodada está em andamento – você entra na próxima.",
+	wins = "Vitórias",
+	color_1 = "Vermelho", color_2 = "Azul", color_3 = "Amarelo", color_4 = "Verde",
+	color_5 = "Roxo", color_6 = "Laranja", color_7 = "Rosa", color_8 = "Ciano",
+	feat_ice = "🧊 gelo",
+	pu_Punch = "🥊 Luva de boxe: soque uma bomba por cima das paredes (E)",
+	pu_MaxFire = "🌋 FOGO MÁXIMO!",
+	match_win = "🏆🏆 {name} venceu a partida!",
+	wins_to = "Vitórias – vence quem chegar a {n}",
+}
+
+S.fr = {
+	countdown = "La manche commence dans {n}…",
+	go = "PARTEZ ! 💣",
+	this_round = "Cette manche : {list}",
+	feat_warps = "🌀 téléporteurs",
+	feat_belts = "➡️ tapis roulants",
+	feat_toggles = "🧱 murs mobiles",
+	arena_full = "L'arène est pleine – tu joueras à une prochaine manche.",
+	you_out = "💀 Tu es éliminé – regarde la suite !",
+	sudden_death = "☠️ MORT SUBITE ! Les murs se referment !",
+	win_round = "🏆 {name} gagne la manche {n} !",
+	draw = "Égalité !",
+	solo_out = "Oups, tu es éliminé !",
+	new_player = "Quelqu'un arrive ! Nouvelle manche…",
+	bots_win = "🤖 Les bots gagnent cette manche !",
+	curse_over = "✨ La malédiction est terminée",
+	pu_Range = "🔥 Portée du feu +1",
+	pu_Bomb = "💣 Bombe en plus",
+	pu_Speed = "👟 Courir plus vite",
+	pu_Pierce = "⚡ Bombes perçantes (le feu traverse les caisses)",
+	pu_Throw = "🧤 Gant : lance des bombes (E)",
+	pu_Kick = "🦶 Botte : marche contre une bombe pour la pousser (E ✋)",
+	curse_slow = "🐌 Maudit : super lent !",
+	curse_nobombs = "🚫 Maudit : tu ne peux plus poser de bombes !",
+	curse_autobomb = "💩 Maudit : tu poses des bombes tout seul !",
+	on = "oui",
+	off = "non",
+	help_keys = "Espace : poser une bombe\nE : ramasser / lancer une bombe (avec 🧤)",
+	help_touch = "Bouton 💣 : poser une bombe\nBouton 🧤 : ramasser / lancer une bombe",
+	sudden_hud = "☠️ MORT SUBITE",
+	spectate_out = "👀 Tu es éliminé – regarde ! Encore {n} en jeu.",
+	spectate_wait = "👀 Une manche est en cours – tu joueras à la suivante.",
+	wins = "Victoires",
+	color_1 = "Rouge", color_2 = "Bleu", color_3 = "Jaune", color_4 = "Vert",
+	color_5 = "Violet", color_6 = "Orange", color_7 = "Rose", color_8 = "Cyan",
+	feat_ice = "🧊 glace",
+	pu_Punch = "🥊 Gant de boxe : frappe une bombe par-dessus les murs (E)",
+	pu_MaxFire = "🌋 FEU MAXIMUM !",
+	match_win = "🏆🏆 {name} gagne la partie !",
+	wins_to = "Victoires – le premier à {n} gagne",
+}
+
+S.de = {
+	countdown = "Runde beginnt in {n}…",
+	go = "LOS! 💣",
+	this_round = "Diese Runde: {list}",
+	feat_warps = "🌀 Teleporter",
+	feat_belts = "➡️ Förderbänder",
+	feat_toggles = "🧱 Schaltmauern",
+	arena_full = "Die Arena ist voll – du spielst in einer späteren Runde mit.",
+	you_out = "💀 Du bist raus – schau weiter zu!",
+	sudden_death = "☠️ SUDDEN DEATH! Die Mauern rücken näher!",
+	win_round = "🏆 {name} gewinnt Runde {n}!",
+	draw = "Unentschieden!",
+	solo_out = "Hoppla, du bist raus!",
+	new_player = "Jemand ist dazugekommen! Neue Runde…",
+	bots_win = "🤖 Die Bots gewinnen diese Runde!",
+	curse_over = "✨ Der Fluch ist vorbei",
+	pu_Range = "🔥 Feuerreichweite +1",
+	pu_Bomb = "💣 Extra-Bombe",
+	pu_Speed = "👟 Schneller laufen",
+	pu_Pierce = "⚡ Durchschlagsbomben (Feuer geht durch Kisten)",
+	pu_Throw = "🧤 Handschuh: Bomben werfen (E)",
+	pu_Kick = "🦶 Kickschuh: lauf gegen eine Bombe, um sie wegzukicken (E ✋)",
+	curse_slow = "🐌 Verflucht: superlangsam!",
+	curse_nobombs = "🚫 Verflucht: du kannst keine Bomben legen!",
+	curse_autobomb = "💩 Verflucht: du legst von selbst Bomben!",
+	on = "an",
+	off = "aus",
+	help_keys = "Leertaste: Bombe legen\nE: Bombe aufheben / werfen (mit 🧤)",
+	help_touch = "💣-Taste: Bombe legen\n🧤-Taste: Bombe aufheben / werfen",
+	sudden_hud = "☠️ SUDDEN DEATH",
+	spectate_out = "👀 Du bist raus – schau zu! Noch {n} übrig.",
+	spectate_wait = "👀 Gerade läuft eine Runde – du spielst in der nächsten mit.",
+	wins = "Siege",
+	color_1 = "Rot", color_2 = "Blau", color_3 = "Gelb", color_4 = "Grün",
+	color_5 = "Lila", color_6 = "Orange", color_7 = "Rosa", color_8 = "Cyan",
+	feat_ice = "🧊 Eis",
+	pu_Punch = "🥊 Boxhandschuh: schlag eine Bombe über die Mauern (E)",
+	pu_MaxFire = "🌋 MAXIMALES FEUER!",
+	match_win = "🏆🏆 {name} gewinnt das Match!",
+	wins_to = "Siege – wer zuerst {n} hat, gewinnt",
+}
+
+S.it = {
+	countdown = "Il round inizia tra {n}…",
+	go = "VIA! 💣",
+	this_round = "In questo round: {list}",
+	feat_warps = "🌀 portali",
+	feat_belts = "➡️ nastri trasportatori",
+	feat_toggles = "🧱 muri mobili",
+	arena_full = "L'arena è piena – giocherai in un prossimo round.",
+	you_out = "💀 Sei eliminato – guarda il resto!",
+	sudden_death = "☠️ MORTE IMPROVVISA! I muri si stringono!",
+	win_round = "🏆 {name} vince il round {n}!",
+	draw = "Pareggio!",
+	solo_out = "Ops, sei eliminato!",
+	new_player = "È arrivato qualcuno! Nuovo round…",
+	bots_win = "🤖 I bot vincono questo round!",
+	curse_over = "✨ La maledizione è finita",
+	pu_Range = "🔥 Portata del fuoco +1",
+	pu_Bomb = "💣 Bomba extra",
+	pu_Speed = "👟 Corri più veloce",
+	pu_Pierce = "⚡ Bombe perforanti (il fuoco attraversa le casse)",
+	pu_Throw = "🧤 Guanto: lancia le bombe (E)",
+	pu_Kick = "🦶 Scarpa: cammina contro una bomba per calciarla (E ✋)",
+	curse_slow = "🐌 Maledetto: lentissimo!",
+	curse_nobombs = "🚫 Maledetto: non puoi piazzare bombe!",
+	curse_autobomb = "💩 Maledetto: piazzi bombe da solo!",
+	on = "sì",
+	off = "no",
+	help_keys = "Spazio: piazza bomba\nE: prendi / lancia bomba (con 🧤)",
+	help_touch = "Tasto 💣: piazza bomba\nTasto 🧤: prendi / lancia bomba",
+	sudden_hud = "☠️ MORTE IMPROVVISA",
+	spectate_out = "👀 Sei eliminato – guarda! Ne restano {n}.",
+	spectate_wait = "👀 C'è un round in corso – giocherai nel prossimo.",
+	wins = "Vittorie",
+	color_1 = "Rosso", color_2 = "Blu", color_3 = "Giallo", color_4 = "Verde",
+	color_5 = "Viola", color_6 = "Arancione", color_7 = "Rosa", color_8 = "Ciano",
+	feat_ice = "🧊 ghiaccio",
+	pu_Punch = "🥊 Guantone: colpisci una bomba oltre i muri (E)",
+	pu_MaxFire = "🌋 FUOCO MASSIMO!",
+	match_win = "🏆🏆 {name} vince la partita!",
+	wins_to = "Vittorie – vince chi arriva a {n}",
+}
+
+S.ru = {
+	countdown = "Раунд начнётся через {n}…",
+	go = "ВПЕРЁД! 💣",
+	this_round = "В этом раунде: {list}",
+	feat_warps = "🌀 телепорты",
+	feat_belts = "➡️ конвейеры",
+	feat_toggles = "🧱 подвижные стены",
+	arena_full = "Арена заполнена – ты сыграешь в следующем раунде.",
+	you_out = "💀 Ты выбыл – смотри дальше!",
+	sudden_death = "☠️ ВНЕЗАПНАЯ СМЕРТЬ! Стены сжимаются!",
+	win_round = "🏆 {name} побеждает в раунде {n}!",
+	draw = "Ничья!",
+	solo_out = "Ой, ты выбыл!",
+	new_player = "Кто-то присоединился! Новый раунд…",
+	bots_win = "🤖 В этом раунде победили боты!",
+	curse_over = "✨ Проклятие закончилось",
+	pu_Range = "🔥 Дальность огня +1",
+	pu_Bomb = "💣 Ещё одна бомба",
+	pu_Speed = "👟 Быстрее бегать",
+	pu_Pierce = "⚡ Пробивные бомбы (огонь проходит сквозь ящики)",
+	pu_Throw = "🧤 Перчатка: бросай бомбы (E)",
+	pu_Kick = "🦶 Ботинок: толкни бомбу, подойдя к ней (E ✋)",
+	curse_slow = "🐌 Проклятие: очень медленно!",
+	curse_nobombs = "🚫 Проклятие: нельзя ставить бомбы!",
+	curse_autobomb = "💩 Проклятие: бомбы ставятся сами!",
+	on = "вкл",
+	off = "выкл",
+	help_keys = "Пробел: поставить бомбу\nE: поднять / бросить бомбу (с 🧤)",
+	help_touch = "Кнопка 💣: поставить бомбу\nКнопка 🧤: поднять / бросить бомбу",
+	sudden_hud = "☠️ ВНЕЗАПНАЯ СМЕРТЬ",
+	spectate_out = "👀 Ты выбыл – смотри! Осталось: {n}.",
+	spectate_wait = "👀 Идёт раунд – ты сыграешь в следующем.",
+	wins = "Победы",
+	color_1 = "Красный", color_2 = "Синий", color_3 = "Жёлтый", color_4 = "Зелёный",
+	color_5 = "Фиолетовый", color_6 = "Оранжевый", color_7 = "Розовый", color_8 = "Голубой",
+	feat_ice = "🧊 лёд",
+	pu_Punch = "🥊 Боксёрская перчатка: отбей бомбу через стены (E)",
+	pu_MaxFire = "🌋 МАКСИМАЛЬНЫЙ ОГОНЬ!",
+	match_win = "🏆🏆 {name} побеждает в матче!",
+	wins_to = "Победы – до {n}",
+}
+
+S.uk = {
+	countdown = "Раунд почнеться через {n}…",
+	go = "ВПЕРЕД! 💣",
+	this_round = "У цьому раунді: {list}",
+	feat_warps = "🌀 телепорти",
+	feat_belts = "➡️ конвеєри",
+	feat_toggles = "🧱 рухомі стіни",
+	arena_full = "Арена заповнена – ти зіграєш у наступному раунді.",
+	you_out = "💀 Ти вибув – дивись далі!",
+	sudden_death = "☠️ РАПТОВА СМЕРТЬ! Стіни стискаються!",
+	win_round = "🏆 {name} перемагає в раунді {n}!",
+	draw = "Нічия!",
+	solo_out = "Ой, ти вибув!",
+	new_player = "Хтось приєднався! Новий раунд…",
+	bots_win = "🤖 У цьому раунді перемогли боти!",
+	curse_over = "✨ Прокляття закінчилося",
+	pu_Range = "🔥 Дальність вогню +1",
+	pu_Bomb = "💣 Ще одна бомба",
+	pu_Speed = "👟 Швидше бігати",
+	pu_Pierce = "⚡ Пробивні бомби (вогонь проходить крізь ящики)",
+	pu_Throw = "🧤 Рукавиця: кидай бомби (E)",
+	pu_Kick = "🦶 Черевик: штовхни бомбу, підійшовши до неї (E ✋)",
+	curse_slow = "🐌 Прокляття: дуже повільно!",
+	curse_nobombs = "🚫 Прокляття: не можна ставити бомби!",
+	curse_autobomb = "💩 Прокляття: бомби ставляться самі!",
+	on = "увімк",
+	off = "вимк",
+	help_keys = "Пробіл: поставити бомбу\nE: підняти / кинути бомбу (з 🧤)",
+	help_touch = "Кнопка 💣: поставити бомбу\nКнопка 🧤: підняти / кинути бомбу",
+	sudden_hud = "☠️ РАПТОВА СМЕРТЬ",
+	spectate_out = "👀 Ти вибув – дивись! Залишилось: {n}.",
+	spectate_wait = "👀 Триває раунд – ти зіграєш у наступному.",
+	wins = "Перемоги",
+	color_1 = "Червоний", color_2 = "Синій", color_3 = "Жовтий", color_4 = "Зелений",
+	color_5 = "Фіолетовий", color_6 = "Помаранчевий", color_7 = "Рожевий", color_8 = "Блакитний",
+	feat_ice = "🧊 лід",
+	pu_Punch = "🥊 Боксерська рукавиця: відбий бомбу через стіни (E)",
+	pu_MaxFire = "🌋 МАКСИМАЛЬНИЙ ВОГОНЬ!",
+	match_win = "🏆🏆 {name} перемагає в матчі!",
+	wins_to = "Перемоги – до {n}",
+}
+
+S.pl = {
+	countdown = "Runda zaczyna się za {n}…",
+	go = "START! 💣",
+	this_round = "W tej rundzie: {list}",
+	feat_warps = "🌀 teleporty",
+	feat_belts = "➡️ taśmociągi",
+	feat_toggles = "🧱 ruchome ściany",
+	arena_full = "Arena jest pełna – zagrasz w następnej rundzie.",
+	you_out = "💀 Odpadasz – oglądaj dalej!",
+	sudden_death = "☠️ NAGŁA ŚMIERĆ! Ściany się zamykają!",
+	win_round = "🏆 {name} wygrywa rundę {n}!",
+	draw = "Remis!",
+	solo_out = "Ups, odpadasz!",
+	new_player = "Ktoś dołączył! Nowa runda…",
+	bots_win = "🤖 Boty wygrywają tę rundę!",
+	curse_over = "✨ Klątwa minęła",
+	pu_Range = "🔥 Zasięg ognia +1",
+	pu_Bomb = "💣 Dodatkowa bomba",
+	pu_Speed = "👟 Szybsze bieganie",
+	pu_Pierce = "⚡ Bomby przebijające (ogień przechodzi przez skrzynie)",
+	pu_Throw = "🧤 Rękawica: rzucaj bombami (E)",
+	pu_Kick = "🦶 But: wejdź w bombę, żeby ją kopnąć (E ✋)",
+	curse_slow = "🐌 Klątwa: bardzo wolno!",
+	curse_nobombs = "🚫 Klątwa: nie możesz kłaść bomb!",
+	curse_autobomb = "💩 Klątwa: kładziesz bomby sam z siebie!",
+	on = "wł.",
+	off = "wył.",
+	help_keys = "Spacja: połóż bombę\nE: podnieś / rzuć bombę (z 🧤)",
+	help_touch = "Przycisk 💣: połóż bombę\nPrzycisk 🧤: podnieś / rzuć bombę",
+	sudden_hud = "☠️ NAGŁA ŚMIERĆ",
+	spectate_out = "👀 Odpadasz – oglądaj! Zostało: {n}.",
+	spectate_wait = "👀 Trwa runda – zagrasz w następnej.",
+	wins = "Wygrane",
+	color_1 = "Czerwony", color_2 = "Niebieski", color_3 = "Żółty", color_4 = "Zielony",
+	color_5 = "Fioletowy", color_6 = "Pomarańczowy", color_7 = "Różowy", color_8 = "Turkusowy",
+	feat_ice = "🧊 lód",
+	pu_Punch = "🥊 Rękawica bokserska: odbij bombę nad ścianami (E)",
+	pu_MaxFire = "🌋 MAKSYMALNY OGIEŃ!",
+	match_win = "🏆🏆 {name} wygrywa mecz!",
+	wins_to = "Wygrane – gra do {n}",
+}
+
+S.tr = {
+	countdown = "Tur {n} saniye içinde başlıyor…",
+	go = "BAŞLA! 💣",
+	this_round = "Bu tur: {list}",
+	feat_warps = "🌀 ışınlanma noktaları",
+	feat_belts = "➡️ yürüyen bantlar",
+	feat_toggles = "🧱 hareketli duvarlar",
+	arena_full = "Arena dolu – sonraki bir turda oynayacaksın.",
+	you_out = "💀 Elendin – devamını izle!",
+	sudden_death = "☠️ ANİ ÖLÜM! Duvarlar kapanıyor!",
+	win_round = "🏆 {name} {n}. turu kazandı!",
+	draw = "Berabere!",
+	solo_out = "Eyvah, elendin!",
+	new_player = "Biri katıldı! Yeni tur…",
+	bots_win = "🤖 Bu turu botlar kazandı!",
+	curse_over = "✨ Lanet bitti",
+	pu_Range = "🔥 Ateş menzili +1",
+	pu_Bomb = "💣 Ekstra bomba",
+	pu_Speed = "👟 Daha hızlı koş",
+	pu_Pierce = "⚡ Delici bombalar (ateş sandıkları geçer)",
+	pu_Throw = "🧤 Eldiven: bomba fırlat (E)",
+	pu_Kick = "🦶 Tekme ayakkabısı: bombaya yürüyerek tekmele (E ✋)",
+	curse_slow = "🐌 Lanetlendin: çok yavaş!",
+	curse_nobombs = "🚫 Lanetlendin: bomba koyamazsın!",
+	curse_autobomb = "💩 Lanetlendin: kendiliğinden bomba koyuyorsun!",
+	on = "açık",
+	off = "kapalı",
+	help_keys = "Boşluk: bomba koy\nE: bombayı al / fırlat (🧤 ile)",
+	help_touch = "💣 düğmesi: bomba koy\n🧤 düğmesi: bombayı al / fırlat",
+	sudden_hud = "☠️ ANİ ÖLÜM",
+	spectate_out = "👀 Elendin – izle! {n} kişi kaldı.",
+	spectate_wait = "👀 Bir tur oynanıyor – sonrakinde oynayacaksın.",
+	wins = "Galibiyetler",
+	color_1 = "Kırmızı", color_2 = "Mavi", color_3 = "Sarı", color_4 = "Yeşil",
+	color_5 = "Mor", color_6 = "Turuncu", color_7 = "Pembe", color_8 = "Camgöbeği",
+	feat_ice = "🧊 buz",
+	pu_Punch = "🥊 Boks eldiveni: bombayı duvarların üzerinden yumrukla (E)",
+	pu_MaxFire = "🌋 MAKSİMUM ATEŞ!",
+	match_win = "🏆🏆 {name} maçı kazandı!",
+	wins_to = "Galibiyetler – {n} olan kazanır",
+}
+
+S.id = {
+	countdown = "Ronde dimulai dalam {n}…",
+	go = "MULAI! 💣",
+	this_round = "Ronde ini: {list}",
+	feat_warps = "🌀 portal",
+	feat_belts = "➡️ ban berjalan",
+	feat_toggles = "🧱 dinding naik-turun",
+	arena_full = "Arena penuh – kamu ikut di ronde berikutnya.",
+	you_out = "💀 Kamu kalah – tonton sisanya!",
+	sudden_death = "☠️ SUDDEN DEATH! Dindingnya menutup!",
+	win_round = "🏆 {name} menang ronde {n}!",
+	draw = "Seri!",
+	solo_out = "Ups, kamu kalah!",
+	new_player = "Ada yang bergabung! Ronde baru…",
+	bots_win = "🤖 Bot menang ronde ini!",
+	curse_over = "✨ Kutukannya sudah hilang",
+	pu_Range = "🔥 Jangkauan api +1",
+	pu_Bomb = "💣 Bom tambahan",
+	pu_Speed = "👟 Lari lebih cepat",
+	pu_Pierce = "⚡ Bom tembus (api menembus peti)",
+	pu_Throw = "🧤 Sarung tangan: lempar bom (E)",
+	pu_Kick = "🦶 Sepatu tendang: jalan ke bom untuk menendangnya (E ✋)",
+	curse_slow = "🐌 Terkutuk: super lambat!",
+	curse_nobombs = "🚫 Terkutuk: kamu tidak bisa menaruh bom!",
+	curse_autobomb = "💩 Terkutuk: kamu menaruh bom sendiri!",
+	on = "aktif",
+	off = "mati",
+	help_keys = "Spasi: taruh bom\nE: ambil / lempar bom (dengan 🧤)",
+	help_touch = "Tombol 💣: taruh bom\nTombol 🧤: ambil / lempar bom",
+	sudden_hud = "☠️ SUDDEN DEATH",
+	spectate_out = "👀 Kamu kalah – tonton! Sisa {n}.",
+	spectate_wait = "👀 Ronde sedang berjalan – kamu ikut di ronde berikutnya.",
+	wins = "Kemenangan",
+	color_1 = "Merah", color_2 = "Biru", color_3 = "Kuning", color_4 = "Hijau",
+	color_5 = "Ungu", color_6 = "Oranye", color_7 = "Merah muda", color_8 = "Sian",
+	feat_ice = "🧊 es",
+	pu_Punch = "🥊 Sarung tinju: pukul bom melewati dinding (E)",
+	pu_MaxFire = "🌋 API MAKSIMAL!",
+	match_win = "🏆🏆 {name} memenangkan pertandingan!",
+	wins_to = "Kemenangan – yang pertama mencapai {n} menang",
+}
+
+S.fil = {
+	countdown = "Magsisimula ang round sa {n}…",
+	go = "TARA! 💣",
+	this_round = "Sa round na ito: {list}",
+	feat_warps = "🌀 mga warp zone",
+	feat_belts = "➡️ mga conveyor belt",
+	feat_toggles = "🧱 mga gumagalaw na pader",
+	arena_full = "Puno na ang arena – sasali ka sa susunod na round.",
+	you_out = "💀 Talo ka na – panoorin ang iba!",
+	sudden_death = "☠️ SUDDEN DEATH! Sumasara na ang mga pader!",
+	win_round = "🏆 Panalo si {name} sa round {n}!",
+	draw = "Tabla!",
+	solo_out = "Naku, talo ka!",
+	new_player = "May sumali! Bagong round…",
+	bots_win = "🤖 Panalo ang mga bot sa round na ito!",
+	curse_over = "✨ Tapos na ang sumpa",
+	pu_Range = "🔥 Abot ng apoy +1",
+	pu_Bomb = "💣 Dagdag na bomba",
+	pu_Speed = "👟 Mas mabilis tumakbo",
+	pu_Pierce = "⚡ Tumatagos na bomba (lumulusot ang apoy sa mga kahon)",
+	pu_Throw = "🧤 Guwantes: maghagis ng bomba (E)",
+	pu_Kick = "🦶 Sipa: lumakad papunta sa bomba para sipain ito (E ✋)",
+	curse_slow = "🐌 Isinumpa: sobrang bagal!",
+	curse_nobombs = "🚫 Isinumpa: hindi ka makapaglagay ng bomba!",
+	curse_autobomb = "💩 Isinumpa: kusa kang naglalagay ng bomba!",
+	on = "on",
+	off = "off",
+	help_keys = "Space: maglagay ng bomba\nE: pulutin / ihagis ang bomba (may 🧤)",
+	help_touch = "💣 na button: maglagay ng bomba\n🧤 na button: pulutin / ihagis ang bomba",
+	sudden_hud = "☠️ SUDDEN DEATH",
+	spectate_out = "👀 Talo ka na – manood! {n} na lang ang natitira.",
+	spectate_wait = "👀 May round na nagaganap – sasali ka sa susunod.",
+	wins = "Mga panalo",
+	color_1 = "Pula", color_2 = "Asul", color_3 = "Dilaw", color_4 = "Berde",
+	color_5 = "Lila", color_6 = "Kahel", color_7 = "Rosas", color_8 = "Cyan",
+	feat_ice = "🧊 yelo",
+	pu_Punch = "🥊 Boxing glove: suntukin ang bomba lampas sa mga pader (E)",
+	pu_MaxFire = "🌋 PINAKAMALAKAS NA APOY!",
+	match_win = "🏆🏆 Panalo si {name} sa laban!",
+	wins_to = "Mga panalo – unang makaabot sa {n}",
+}
+
+S.vi = {
+	countdown = "Vòng đấu bắt đầu sau {n}…",
+	go = "BẮT ĐẦU! 💣",
+	this_round = "Vòng này: {list}",
+	feat_warps = "🌀 cổng dịch chuyển",
+	feat_belts = "➡️ băng chuyền",
+	feat_toggles = "🧱 tường lên xuống",
+	arena_full = "Đấu trường đã đầy – bạn sẽ chơi ở vòng sau.",
+	you_out = "💀 Bạn bị loại – hãy xem tiếp!",
+	sudden_death = "☠️ ĐỘT TỬ! Các bức tường đang khép lại!",
+	win_round = "🏆 {name} thắng vòng {n}!",
+	draw = "Hòa!",
+	solo_out = "Ối, bạn bị loại!",
+	new_player = "Có người tham gia! Vòng mới…",
+	bots_win = "🤖 Các bot thắng vòng này!",
+	curse_over = "✨ Lời nguyền đã hết",
+	pu_Range = "🔥 Tầm lửa +1",
+	pu_Bomb = "💣 Thêm bom",
+	pu_Speed = "👟 Chạy nhanh hơn",
+	pu_Pierce = "⚡ Bom xuyên (lửa xuyên qua thùng)",
+	pu_Throw = "🧤 Găng tay: ném bom (E)",
+	pu_Kick = "🦶 Giày đá: đi vào quả bom để đá nó (E ✋)",
+	curse_slow = "🐌 Bị nguyền: siêu chậm!",
+	curse_nobombs = "🚫 Bị nguyền: bạn không thể đặt bom!",
+	curse_autobomb = "💩 Bị nguyền: bạn tự động đặt bom!",
+	on = "bật",
+	off = "tắt",
+	help_keys = "Phím cách: đặt bom\nE: nhặt / ném bom (với 🧤)",
+	help_touch = "Nút 💣: đặt bom\nNút 🧤: nhặt / ném bom",
+	sudden_hud = "☠️ ĐỘT TỬ",
+	spectate_out = "👀 Bạn bị loại – hãy xem! Còn {n} người.",
+	spectate_wait = "👀 Đang có vòng đấu – bạn sẽ chơi ở vòng sau.",
+	wins = "Chiến thắng",
+	color_1 = "Đỏ", color_2 = "Xanh dương", color_3 = "Vàng", color_4 = "Xanh lá",
+	color_5 = "Tím", color_6 = "Cam", color_7 = "Hồng", color_8 = "Lục lam",
+	feat_ice = "🧊 băng",
+	pu_Punch = "🥊 Găng đấm bốc: đấm bom bay qua tường (E)",
+	pu_MaxFire = "🌋 LỬA TỐI ĐA!",
+	match_win = "🏆🏆 {name} thắng trận đấu!",
+	wins_to = "Chiến thắng – ai đạt {n} trước sẽ thắng",
+}
+
+S.th = {
+	countdown = "รอบจะเริ่มใน {n}…",
+	go = "เริ่ม! 💣",
+	this_round = "รอบนี้มี: {list}",
+	feat_warps = "🌀 ประตูวาร์ป",
+	feat_belts = "➡️ สายพาน",
+	feat_toggles = "🧱 กำแพงขึ้นลง",
+	arena_full = "สนามเต็มแล้ว – คุณจะได้เล่นในรอบถัดไป",
+	you_out = "💀 คุณตกรอบแล้ว – ดูต่อได้เลย!",
+	sudden_death = "☠️ ซัดเดนเดธ! กำแพงกำลังปิดเข้ามา!",
+	win_round = "🏆 {name} ชนะรอบที่ {n}!",
+	draw = "เสมอ!",
+	solo_out = "อุ๊ย คุณตกรอบแล้ว!",
+	new_player = "มีคนเข้าร่วม! เริ่มรอบใหม่…",
+	bots_win = "🤖 บอทชนะรอบนี้!",
+	curse_over = "✨ คำสาปหมดแล้ว",
+	pu_Range = "🔥 ระยะไฟ +1",
+	pu_Bomb = "💣 ระเบิดเพิ่ม",
+	pu_Speed = "👟 วิ่งเร็วขึ้น",
+	pu_Pierce = "⚡ ระเบิดทะลุ (ไฟทะลุลัง)",
+	pu_Throw = "🧤 ถุงมือ: ขว้างระเบิด (E)",
+	pu_Kick = "🦶 รองเท้าเตะ: เดินชนระเบิดเพื่อเตะ (E ✋)",
+	curse_slow = "🐌 ถูกสาป: ช้ามาก!",
+	curse_nobombs = "🚫 ถูกสาป: วางระเบิดไม่ได้!",
+	curse_autobomb = "💩 ถูกสาป: วางระเบิดเอง!",
+	on = "เปิด",
+	off = "ปิด",
+	help_keys = "Space: วางระเบิด\nE: หยิบ / ขว้างระเบิด (มี 🧤)",
+	help_touch = "ปุ่ม 💣: วางระเบิด\nปุ่ม 🧤: หยิบ / ขว้างระเบิด",
+	sudden_hud = "☠️ ซัดเดนเดธ",
+	spectate_out = "👀 คุณตกรอบแล้ว – ดูต่อ! เหลืออีก {n}",
+	spectate_wait = "👀 กำลังเล่นรอบอยู่ – คุณจะได้เล่นรอบถัดไป",
+	wins = "ชนะ",
+	color_1 = "แดง", color_2 = "น้ำเงิน", color_3 = "เหลือง", color_4 = "เขียว",
+	color_5 = "ม่วง", color_6 = "ส้ม", color_7 = "ชมพู", color_8 = "ฟ้า",
+	feat_ice = "🧊 น้ำแข็ง",
+	pu_Punch = "🥊 นวม: ต่อยระเบิดข้ามกำแพง (E)",
+	pu_MaxFire = "🌋 ไฟสูงสุด!",
+	match_win = "🏆🏆 {name} ชนะการแข่งขัน!",
+	wins_to = "ชนะ – ใครถึง {n} ก่อนชนะ",
+}
+
+S.ja = {
+	countdown = "ラウンド開始まで {n}…",
+	go = "スタート！💣",
+	this_round = "このラウンド：{list}",
+	feat_warps = "🌀 ワープゾーン",
+	feat_belts = "➡️ ベルトコンベア",
+	feat_toggles = "🧱 上下する壁",
+	arena_full = "アリーナが満員です。次のラウンドから参加できます。",
+	you_out = "💀 やられた！続きを観戦しよう！",
+	sudden_death = "☠️ サドンデス！壁が迫ってくる！",
+	win_round = "🏆 {name} がラウンド {n} に勝利！",
+	draw = "引き分け！",
+	solo_out = "あっ、やられた！",
+	new_player = "誰かが参加しました！新しいラウンド…",
+	bots_win = "🤖 このラウンドはボットの勝ち！",
+	curse_over = "✨ 呪いが解けた",
+	pu_Range = "🔥 火力 +1",
+	pu_Bomb = "💣 ボム追加",
+	pu_Speed = "👟 スピードアップ",
+	pu_Pierce = "⚡ 貫通ボム（炎が箱を突き抜ける）",
+	pu_Throw = "🧤 グローブ：ボムを投げる (E)",
+	pu_Kick = "🦶 キック：ボムに向かって歩くと蹴れる (E ✋)",
+	curse_slow = "🐌 呪い：超スロー！",
+	curse_nobombs = "🚫 呪い：ボムを置けない！",
+	curse_autobomb = "💩 呪い：勝手にボムを置いてしまう！",
+	on = "オン",
+	off = "オフ",
+	help_keys = "スペース：ボムを置く\nE：ボムを持つ / 投げる（🧤が必要）",
+	help_touch = "💣ボタン：ボムを置く\n🧤ボタン：ボムを持つ / 投げる",
+	sudden_hud = "☠️ サドンデス",
+	spectate_out = "👀 やられた！観戦中。残り {n} 人。",
+	spectate_wait = "👀 ラウンド進行中。次のラウンドから参加できます。",
+	wins = "勝利数",
+	color_1 = "赤", color_2 = "青", color_3 = "黄", color_4 = "緑",
+	color_5 = "紫", color_6 = "オレンジ", color_7 = "ピンク", color_8 = "水色",
+	feat_ice = "🧊 氷",
+	pu_Punch = "🥊 ボクシンググローブ：ボムを壁の向こうへ殴り飛ばす (E)",
+	pu_MaxFire = "🌋 火力MAX！",
+	match_win = "🏆🏆 {name} が試合に勝利！",
+	wins_to = "勝利数 – 先に {n} 勝した人の勝ち",
+}
+
+S.ko = {
+	countdown = "{n}초 후 라운드 시작…",
+	go = "시작! 💣",
+	this_round = "이번 라운드: {list}",
+	feat_warps = "🌀 워프 존",
+	feat_belts = "➡️ 컨베이어 벨트",
+	feat_toggles = "🧱 오르내리는 벽",
+	arena_full = "경기장이 꽉 찼어요 – 다음 라운드에 참가해요.",
+	you_out = "💀 탈락! 나머지 경기를 지켜봐요!",
+	sudden_death = "☠️ 서든 데스! 벽이 좁혀 와요!",
+	win_round = "🏆 {name} 님이 {n} 라운드 승리!",
+	draw = "무승부!",
+	solo_out = "앗, 탈락했어요!",
+	new_player = "누군가 들어왔어요! 새 라운드…",
+	bots_win = "🤖 이번 라운드는 봇의 승리!",
+	curse_over = "✨ 저주가 풀렸어요",
+	pu_Range = "🔥 불길 범위 +1",
+	pu_Bomb = "💣 폭탄 추가",
+	pu_Speed = "👟 더 빨리 달리기",
+	pu_Pierce = "⚡ 관통 폭탄 (불길이 상자를 뚫어요)",
+	pu_Throw = "🧤 장갑: 폭탄 던지기 (E)",
+	pu_Kick = "🦶 킥 신발: 폭탄으로 걸어가면 걷어차요 (E ✋)",
+	curse_slow = "🐌 저주: 엄청 느려요!",
+	curse_nobombs = "🚫 저주: 폭탄을 놓을 수 없어요!",
+	curse_autobomb = "💩 저주: 폭탄이 저절로 놓여요!",
+	on = "켜짐",
+	off = "꺼짐",
+	help_keys = "스페이스: 폭탄 놓기\nE: 폭탄 들기 / 던지기 (🧤 필요)",
+	help_touch = "💣 버튼: 폭탄 놓기\n🧤 버튼: 폭탄 들기 / 던지기",
+	sudden_hud = "☠️ 서든 데스",
+	spectate_out = "👀 탈락! 관전 중. {n}명 남음.",
+	spectate_wait = "👀 라운드 진행 중 – 다음 라운드에 참가해요.",
+	wins = "승리",
+	color_1 = "빨강", color_2 = "파랑", color_3 = "노랑", color_4 = "초록",
+	color_5 = "보라", color_6 = "주황", color_7 = "분홍", color_8 = "하늘",
+	feat_ice = "🧊 얼음",
+	pu_Punch = "🥊 권투 장갑: 폭탄을 벽 너머로 쳐 날려요 (E)",
+	pu_MaxFire = "🌋 최대 화력!",
+	match_win = "🏆🏆 {name} 님이 경기에서 승리!",
+	wins_to = "승리 – 먼저 {n}승 하면 우승",
+}
+
+S.zh_cn = {
+	countdown = "{n} 秒后开始回合…",
+	go = "开始！💣",
+	this_round = "本回合：{list}",
+	feat_warps = "🌀 传送门",
+	feat_belts = "➡️ 传送带",
+	feat_toggles = "🧱 升降墙",
+	arena_full = "竞技场已满——你将在之后的回合加入。",
+	you_out = "💀 你出局了——继续观战吧！",
+	sudden_death = "☠️ 突然死亡！墙壁正在合拢！",
+	win_round = "🏆 {name} 赢得第 {n} 回合！",
+	draw = "平局！",
+	solo_out = "哎呀，你出局了！",
+	new_player = "有人加入了！新回合…",
+	bots_win = "🤖 本回合机器人获胜！",
+	curse_over = "✨ 诅咒结束了",
+	pu_Range = "🔥 火焰范围 +1",
+	pu_Bomb = "💣 额外炸弹",
+	pu_Speed = "👟 跑得更快",
+	pu_Pierce = "⚡ 穿透炸弹（火焰穿过箱子）",
+	pu_Throw = "🧤 手套：投掷炸弹 (E)",
+	pu_Kick = "🦶 踢鞋：走向炸弹即可踢开 (E ✋)",
+	curse_slow = "🐌 被诅咒：超级慢！",
+	curse_nobombs = "🚫 被诅咒：不能放炸弹！",
+	curse_autobomb = "💩 被诅咒：会自动放炸弹！",
+	on = "开",
+	off = "关",
+	help_keys = "空格：放炸弹\nE：拿起 / 投掷炸弹（需要 🧤）",
+	help_touch = "💣 按钮：放炸弹\n🧤 按钮：拿起 / 投掷炸弹",
+	sudden_hud = "☠️ 突然死亡",
+	spectate_out = "👀 你出局了——观战中！还剩 {n} 人。",
+	spectate_wait = "👀 回合进行中——你将在下一回合加入。",
+	wins = "胜场",
+	color_1 = "红", color_2 = "蓝", color_3 = "黄", color_4 = "绿",
+	color_5 = "紫", color_6 = "橙", color_7 = "粉", color_8 = "青",
+	feat_ice = "🧊 冰面",
+	pu_Punch = "🥊 拳击手套：把炸弹打过墙 (E)",
+	pu_MaxFire = "🌋 最大火力！",
+	match_win = "🏆🏆 {name} 赢得比赛！",
+	wins_to = "胜场 – 先赢 {n} 场者获胜",
+}
+
+S.zh_tw = {
+	countdown = "{n} 秒後開始回合…",
+	go = "開始！💣",
+	this_round = "本回合：{list}",
+	feat_warps = "🌀 傳送門",
+	feat_belts = "➡️ 輸送帶",
+	feat_toggles = "🧱 升降牆",
+	arena_full = "競技場已滿——你將在之後的回合加入。",
+	you_out = "💀 你出局了——繼續觀戰吧！",
+	sudden_death = "☠️ 驟死賽！牆壁正在合攏！",
+	win_round = "🏆 {name} 贏得第 {n} 回合！",
+	draw = "平手！",
+	solo_out = "哎呀，你出局了！",
+	new_player = "有人加入了！新回合…",
+	bots_win = "🤖 本回合機器人獲勝！",
+	curse_over = "✨ 詛咒結束了",
+	pu_Range = "🔥 火焰範圍 +1",
+	pu_Bomb = "💣 額外炸彈",
+	pu_Speed = "👟 跑得更快",
+	pu_Pierce = "⚡ 穿透炸彈（火焰穿過箱子）",
+	pu_Throw = "🧤 手套：投擲炸彈 (E)",
+	pu_Kick = "🦶 踢鞋：走向炸彈即可踢開 (E ✋)",
+	curse_slow = "🐌 被詛咒：超級慢！",
+	curse_nobombs = "🚫 被詛咒：不能放炸彈！",
+	curse_autobomb = "💩 被詛咒：會自動放炸彈！",
+	on = "開",
+	off = "關",
+	help_keys = "空白鍵：放炸彈\nE：拿起 / 投擲炸彈（需要 🧤）",
+	help_touch = "💣 按鈕：放炸彈\n🧤 按鈕：拿起 / 投擲炸彈",
+	sudden_hud = "☠️ 驟死賽",
+	spectate_out = "👀 你出局了——觀戰中！還剩 {n} 人。",
+	spectate_wait = "👀 回合進行中——你將在下一回合加入。",
+	wins = "勝場",
+	color_1 = "紅", color_2 = "藍", color_3 = "黃", color_4 = "綠",
+	color_5 = "紫", color_6 = "橙", color_7 = "粉", color_8 = "青",
+	feat_ice = "🧊 冰面",
+	pu_Punch = "🥊 拳擊手套：把炸彈打過牆 (E)",
+	pu_MaxFire = "🌋 最大火力！",
+	match_win = "🏆🏆 {name} 贏得比賽！",
+	wins_to = "勝場 – 先贏 {n} 場者獲勝",
+}
+
+S.ar = {
+	countdown = "تبدأ الجولة خلال {n}…",
+	go = "انطلق! 💣",
+	this_round = "في هذه الجولة: {list}",
+	feat_warps = "🌀 بوابات انتقال",
+	feat_belts = "➡️ سيور متحركة",
+	feat_toggles = "🧱 جدران متحركة",
+	arena_full = "الساحة ممتلئة – ستلعب في جولة لاحقة.",
+	you_out = "💀 لقد خرجت – شاهد البقية!",
+	sudden_death = "☠️ الموت المفاجئ! الجدران تقترب!",
+	win_round = "🏆 {name} يفوز بالجولة {n}!",
+	draw = "تعادل!",
+	solo_out = "أوه، لقد خرجت!",
+	new_player = "انضم لاعب جديد! جولة جديدة…",
+	bots_win = "🤖 الروبوتات فازت بهذه الجولة!",
+	curse_over = "✨ انتهت اللعنة",
+	pu_Range = "🔥 مدى النار +1",
+	pu_Bomb = "💣 قنبلة إضافية",
+	pu_Speed = "👟 ركض أسرع",
+	pu_Pierce = "⚡ قنابل خارقة (النار تخترق الصناديق)",
+	pu_Throw = "🧤 قفاز: ارمِ القنابل (E)",
+	pu_Kick = "🦶 حذاء الركل: امشِ نحو القنبلة لتركلها (E ✋)",
+	curse_slow = "🐌 ملعون: بطيء جدًا!",
+	curse_nobombs = "🚫 ملعون: لا يمكنك وضع القنابل!",
+	curse_autobomb = "💩 ملعون: تضع القنابل تلقائيًا!",
+	on = "تشغيل",
+	off = "إيقاف",
+	help_keys = "المسافة: ضع قنبلة\nE: التقط / ارمِ القنبلة (مع 🧤)",
+	help_touch = "زر 💣: ضع قنبلة\nزر 🧤: التقط / ارمِ القنبلة",
+	sudden_hud = "☠️ الموت المفاجئ",
+	spectate_out = "👀 لقد خرجت – شاهد! بقي {n}.",
+	spectate_wait = "👀 هناك جولة جارية – ستلعب في الجولة التالية.",
+	wins = "الانتصارات",
+	color_1 = "أحمر", color_2 = "أزرق", color_3 = "أصفر", color_4 = "أخضر",
+	color_5 = "بنفسجي", color_6 = "برتقالي", color_7 = "وردي", color_8 = "سماوي",
+	feat_ice = "🧊 جليد",
+	pu_Punch = "🥊 قفاز ملاكمة: اضرب القنبلة فوق الجدران (E)",
+	pu_MaxFire = "🌋 أقصى نار!",
+	match_win = "🏆🏆 {name} يفوز بالمباراة!",
+	wins_to = "الانتصارات – الفائز أول من يصل إلى {n}",
+}
+
+Lang.strings = S
+
+-- Roblox locale ids look like "en-us", "pt-br", "zh-cn". Most map on their prefix.
+local LOCALE_MAP = {
+	["zh-cn"] = "zh_cn", ["zh-hans"] = "zh_cn", ["zh-sg"] = "zh_cn",
+	["zh-tw"] = "zh_tw", ["zh-hant"] = "zh_tw", ["zh-hk"] = "zh_tw",
+	["tl"] = "fil",
+}
+
+function Lang.pick(localeId)
+	local id = string.lower(localeId or "en-us"):gsub("_", "-")
+	if LOCALE_MAP[id] then
+		return LOCALE_MAP[id]
+	end
+	local prefix = string.match(id, "^(%a+)") or "en"
+	if prefix == "zh" then
+		return "zh_cn"
+	end
+	if LOCALE_MAP[prefix] then
+		return LOCALE_MAP[prefix]
+	end
+	return S[prefix] and prefix or "en"
+end
+
+-- Translate a message ({k=..., a=...}) or a plain key into the given language
+function Lang.t(lang, msg, args)
+	if type(msg) == "string" then
+		msg = { k = msg, a = args }
+	end
+	local tbl = S[lang] or S.en
+	local text = tbl[msg.k] or S.en[msg.k] or msg.k
+	if msg.a then
+		text = string.gsub(text, "{(%w+)}", function(name)
+			local v = msg.a[name]
+			if type(v) == "table" then
+				if v.k then
+					return Lang.t(lang, v)
+				end
+				local parts = {}
+				for i, item in ipairs(v) do
+					parts[i] = Lang.t(lang, item)
+				end
+				return table.concat(parts, ", ")
+			elseif v ~= nil then
+				return tostring(v)
+			end
+			return "{" .. name .. "}"
+		end)
+	end
+	return text
+end
+
+return Lang
+]]></ProtectedString>
 </Properties></Item></Item>
-<Item class="ServerScriptService" referent="RBX7"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Script" referent="RBX6"><Properties>
+<Item class="ServerScriptService" referent="RBX18"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Script" referent="RBX16"><Properties>
 <string name="Name">BombermanServer</string>
-<ProtectedString name="Source"><![CDATA[-- Roblomberman: server (arena, bommen, goodies, rondes)
+<ProtectedString name="Source"><![CDATA[-- Roblomberman: server entry point (rounds and players).
+-- The game rules live in the modules in the "Bomberman" folder:
+--   Grid      grid helpers (cell <-> position, arena size)
+--   State     shared game state
+--   Net       RemoteEvents and round info for the clients
+--   Sounds    sound effects
+--   Powerups  goodies and curses
+--   Arena     building the arena, crates, warps, belts, switch walls, sudden death
+--   Bombs     placing / throwing / kicking / exploding bombs and fire
+--   Bots      computer opponents
+-- Player-facing text is never built here: we send message keys (see
+-- ReplicatedStorage.Lang) and each client translates them.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
-local T, W, H = Config.TILE, Config.WIDTH, Config.HEIGHT
+local Modules = script.Parent:WaitForChild("Bomberman")
+local Grid = require(Modules:WaitForChild("Grid"))
+local S = require(Modules:WaitForChild("State"))
+local Net = require(Modules:WaitForChild("Net"))
+local Sounds = require(Modules:WaitForChild("Sounds"))
+local Powerups = require(Modules:WaitForChild("Powerups"))
+local Arena = require(Modules:WaitForChild("Arena"))
+local Bombs = require(Modules:WaitForChild("Bombs"))
+local Bots = require(Modules:WaitForChild("Bots"))
 
 Players.CharacterAutoLoads = false
 
-----------------------------------------------------------------------
--- Remotes
-----------------------------------------------------------------------
-local remotes = Instance.new("Folder")
-remotes.Name = "BombRemotes"
-remotes.Parent = ReplicatedStorage
+Net.PlaceBomb.OnServerEvent:Connect(function(player)
+	Bombs.place(player)
+end)
+Net.ThrowBomb.OnServerEvent:Connect(function(player)
+	Bombs.throw(player)
+end)
 
-local function newRemote(name)
-	local r = Instance.new("RemoteEvent")
-	r.Name = name
-	r.Parent = remotes
-	return r
+local roundNumber = 0
+local matchOver = false -- true after someone won the match: the next round starts a new one
+
+local function msg(k, a)
+	return { k = k, a = a }
 end
-local placeRemote = newRemote("PlaceBomb")
-local throwRemote = newRemote("ThrowBomb")
-local announceRemote = newRemote("Announce") -- (tekst, seconden, klein?)
 
 ----------------------------------------------------------------------
--- Grid helpers
+-- Rounds
 ----------------------------------------------------------------------
-local originX = -(W - 1) * T / 2
-local originZ = -(H - 1) * T / 2
-
-local function cellPos(x, z)
-	return Vector3.new(originX + (x - 1) * T, 0, originZ + (z - 1) * T)
-end
-local function cellOf(p)
-	return math.floor((p.X - originX) / T + 0.5) + 1, math.floor((p.Z - originZ) / T + 0.5) + 1
-end
-local function key(x, z)
-	return x * 100 + z
-end
-local function inBounds(x, z)
-	return x >= 1 and x <= W and z >= 1 and z <= H
-end
-
-local DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
-local CORNERS = { { 1, 1 }, { W, H }, { W, 1 }, { 1, H } }
-
-----------------------------------------------------------------------
--- State
-----------------------------------------------------------------------
-local arena
-local gen = 0
-local terrain = {} -- key -> "wall" | "crate"
-local crateParts = {}
-local bombs = {} -- set
-local bombAt = {} -- key -> bomb
-local powerups = {} -- key -> {part, kind}
-local flames = {} -- {cells = {key=true}, expires}
-local stats = {} -- player -> stats
-local alive = {} -- player -> true
-local roundPlayers = {}
-local roundState = "lobby" -- lobby | playing | over
-
-local function getRoot(player)
-	local c = player.Character
-	return c and c:FindFirstChild("HumanoidRootPart")
-end
-local function getHum(player)
-	local c = player.Character
-	return c and c:FindFirstChildOfClass("Humanoid")
-end
-local function announce(text, seconds, small, player)
-	if player then
-		announceRemote:FireClient(player, text, seconds or 3, small)
-	else
-		announceRemote:FireAllClients(text, seconds or 3, small)
+local function updateAliveCount()
+	local n = 0
+	for _ in pairs(S.alive) do
+		n += 1
 	end
+	Net.set("AliveCount", n)
 end
 
-----------------------------------------------------------------------
--- Goodies
-----------------------------------------------------------------------
-local POWERUPS = {
-	Range = {
-		emoji = "🔥", name = "Vuurbereik +1", color = Color3.fromRGB(255, 120, 40), weight = 25,
-		apply = function(s) s.range = math.min(s.range + 1, Config.MAX_RANGE) end,
-	},
-	Bomb = {
-		emoji = "💣", name = "Extra bom", color = Color3.fromRGB(90, 90, 110), weight = 25,
-		apply = function(s) s.maxBombs = math.min(s.maxBombs + 1, Config.MAX_BOMBS) end,
-	},
-	Speed = {
-		emoji = "👟", name = "Sneller lopen", color = Color3.fromRGB(80, 200, 255), weight = 15,
-		apply = function(s) s.speed = math.min(s.speed + Config.SPEED_STEP, Config.MAX_SPEED) end,
-	},
-	Pierce = {
-		emoji = "⚡", name = "Doorboor-bommen (vuur breekt door kisten)", color = Color3.fromRGB(255, 230, 60), weight = 10,
-		apply = function(s) s.pierce = true end,
-	},
-	Throw = {
-		emoji = "🧤", name = "Handschoen: bommen gooien (E)", color = Color3.fromRGB(120, 255, 120), weight = 15,
-		apply = function(s) s.throw = true end,
-	},
-}
+local function setAlive(plr, value)
+	S.alive[plr] = value and true or nil
+	plr:SetAttribute("Alive", value and true or false)
+	updateAliveCount()
+end
 
-local function pickPowerup()
-	local total = 0
-	for _, d in pairs(POWERUPS) do
-		total += d.weight
+local function getWins(plr)
+	local ls = plr:FindFirstChild("leaderstats")
+	return ls and ls:FindFirstChild("Wins")
+end
+
+-- Scoreboard for everyone: real players plus the bots that have played
+local function sendResult(winner, title)
+	local everyone = Players:GetPlayers()
+	for _, bot in ipairs(Bots.all()) do
+		everyone[#everyone + 1] = bot
 	end
-	local r = math.random() * total
-	for kind, d in pairs(POWERUPS) do
-		r -= d.weight
-		if r <= 0 then
-			return kind
+	local rows = {}
+	for _, plr in ipairs(everyone) do
+		local w = getWins(plr)
+		local shown = Config.MATCH_WINS > 0 and (plr:GetAttribute("MatchWins") or 0) or (w and w.Value or 0)
+		rows[#rows + 1] = {
+			name = S.nameOf(plr),
+			wins = shown,
+			color = plr:GetAttribute("Color"),
+			winner = plr == winner,
+		}
+	end
+	table.sort(rows, function(a, b)
+		if a.wins ~= b.wins then
+			return a.wins > b.wins
 		end
-	end
-	return "Range"
+		return a.name < b.name
+	end)
+	local header = Config.MATCH_WINS > 0 and msg("wins_to", { n = Config.MATCH_WINS }) or msg("wins")
+	Net.RoundResult:FireAllClients(title, rows, Config.INTERMISSION, header)
 end
 
-local function newStats()
-	return {
-		maxBombs = Config.START_BOMBS,
-		range = Config.START_RANGE,
-		speed = Config.START_SPEED,
-		pierce = false,
-		throw = false,
-		active = 0,
-		held = nil,
-		lastAction = 0,
-		invulUntil = 0,
-	}
-end
-
-local function syncStats(player)
-	local s = stats[player]
-	if not s then
+local function endRound(winner, reason)
+	if S.roundState ~= "playing" then
 		return
 	end
-	player:SetAttribute("Bombs", s.maxBombs)
-	player:SetAttribute("Range", s.range)
-	player:SetAttribute("Speed", s.speed)
-	player:SetAttribute("Pierce", s.pierce)
-	player:SetAttribute("Throw", s.throw)
-	local hum = getHum(player)
-	if hum then
-		hum.WalkSpeed = s.speed
+	S.roundState = "over"
+	Net.set("State", "over")
+	Net.set("SuddenDeath", false)
+	local title
+	if winner then
+		local w = getWins(winner)
+		if w then
+			w.Value += 1
+		end
+		title = msg("win_round", { name = S.nameOf(winner), n = roundNumber })
+		Sounds.play("Win")
+		if Config.MATCH_WINS > 0 then
+			local mw = (winner:GetAttribute("MatchWins") or 0) + 1
+			winner:SetAttribute("MatchWins", mw)
+			if mw >= Config.MATCH_WINS then
+				title = msg("match_win", { name = S.nameOf(winner) })
+				matchOver = true
+			end
+		end
+	else
+		title = reason or msg("draw")
+	end
+	sendResult(winner, title)
+end
+
+local function checkRound()
+	if S.roundState ~= "playing" then
+		return
+	end
+	local count, last = 0, nil
+	local humansInRound, humansAlive = 0, 0
+	for plr in pairs(S.alive) do
+		count += 1
+		last = plr
+		if not S.isBot(plr) then
+			humansAlive += 1
+		end
+	end
+	for _, plr in ipairs(S.roundPlayers) do
+		if not S.isBot(plr) then
+			humansInRound += 1
+		end
+	end
+
+	if #S.roundPlayers >= 2 then
+		if count <= 1 then
+			endRound(last)
+		elseif humansInRound > 0 and humansAlive == 0 then
+			-- all real players are out: don't make them watch the bots for ages
+			endRound(nil, msg("bots_win"))
+		end
+	elseif count == 0 then
+		endRound(nil, msg("solo_out"))
+	elseif #Players:GetPlayers() >= 2 then
+		-- someone was practising alone and a second player joined:
+		-- stop the practice round so everyone can start together
+		endRound(nil, msg("new_player"))
 	end
 end
 
-local function removePowerup(k)
-	local pu = powerups[k]
-	if pu then
-		pu.part:Destroy()
-		powerups[k] = nil
+local function onDeath(player)
+	if not S.alive[player] then
+		return
+	end
+	setAlive(player, false)
+	local root = S.getRoot(player)
+	Sounds.play("Death", root and root.Position)
+	local s = S.stats[player]
+	if s and s.held then
+		Bombs.explode(s.held)
+	end
+	if s then
+		Powerups.scatter(s)
+	end
+	Net.announce(msg("you_out"), 3, false, player)
+	checkRound()
+end
+
+local function killOnCell(x, z)
+	local plr = S.playerOnCell(Grid.cellOf, x, z)
+	while plr do
+		local hum = S.getHum(plr)
+		if hum then
+			hum.Health = 0
+		end
+		onDeath(plr) -- right away, so playerOnCell won't find them again
+		plr = S.playerOnCell(Grid.cellOf, x, z)
 	end
 end
 
-local function spawnPowerup(x, z, kind)
-	local def = POWERUPS[kind]
-	local p = Instance.new("Part")
-	p.Name = "Goodie_" .. kind
-	p.Size = Vector3.new(2.4, 2.4, 2.4)
-	p.Material = Enum.Material.Neon
-	p.Color = def.color
-	p.Anchored = true
-	p.CanCollide = false
-	p.Position = cellPos(x, z) + Vector3.new(0, 2, 0)
-
-	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(64, 64)
-	gui.AlwaysOnTop = false
-	gui.Parent = p
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Text = def.emoji
-	label.TextScaled = true
-	label.Parent = gui
-
-	p.Parent = arena
-	TweenService:Create(p, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-		Position = cellPos(x, z) + Vector3.new(0, 2.8, 0),
-	}):Play()
-	powerups[key(x, z)] = { part = p, kind = kind }
+-- After the round time the arena closes in from the outside
+local function suddenDeath()
+	local myGen = S.gen
+	Net.set("SuddenDeath", true)
+	Net.announce(msg("sudden_death"), 3)
+	for _, c in ipairs(Grid.spiral()) do
+		if S.roundState ~= "playing" or S.gen ~= myGen then
+			return
+		end
+		local x, z = c[1], c[2]
+		if Arena.closeCell(x, z) then
+			local b = S.bombAt[Grid.key(x, z)]
+			if b then
+				Bombs.explode(b)
+			end
+			task.wait(0.2) -- the block is still falling
+			if S.roundState ~= "playing" or S.gen ~= myGen then
+				return
+			end
+			killOnCell(x, z)
+			task.wait(math.max(0, Config.SUDDEN_DEATH_STEP - 0.2))
+		end
+	end
 end
 
+local function colorCharacter(char, color)
+	local hl = Instance.new("Highlight")
+	hl.FillColor = color
+	hl.FillTransparency = 0.45
+	hl.OutlineColor = Color3.new(1, 1, 1)
+	hl.OutlineTransparency = 0.2
+	hl.DepthMode = Enum.HighlightDepthMode.Occluded
+	hl.Parent = char
+end
+
+local function startRound()
+	-- who plays: real players first, then bots to fill up to BOT_FILL
+	local humans = Players:GetPlayers()
+	local participants = {}
+	for i = 1, math.min(#humans, Config.MAX_PLAYERS) do
+		participants[i] = humans[i]
+	end
+	for i = Config.MAX_PLAYERS + 1, #humans do
+		Net.announce(msg("arena_full"), 4, true, humans[i])
+	end
+	local botCount = math.max(0, math.min(Config.BOT_FILL, Config.MAX_PLAYERS) - #participants)
+	for _, bot in ipairs(Bots.get(botCount)) do
+		participants[#participants + 1] = bot
+	end
+
+	if matchOver then
+		-- a new match: everyone back to 0 round wins
+		matchOver = false
+		roundNumber = 0
+		for _, p in ipairs(Players:GetPlayers()) do
+			p:SetAttribute("MatchWins", 0)
+		end
+		for _, bot in ipairs(Bots.all()) do
+			bot:SetAttribute("MatchWins", 0)
+		end
+	end
+
+	local features = Arena.build(#participants)
+	Arena.resetToggles(os.clock())
+	Bots.clearCharacters()
+	table.clear(S.alive)
+	table.clear(S.stats)
+	S.roundPlayers = participants
+	roundNumber += 1
+	Net.set("Round", roundNumber)
+
+	for _, plr in ipairs(humans) do
+		plr:SetAttribute("InRound", false)
+		plr:SetAttribute("Alive", false)
+	end
+	for _, plr in ipairs(participants) do
+		for _, attr in ipairs({ "Color", "ColorName", "Curse" }) do
+			plr:SetAttribute(attr, nil)
+		end
+	end
+
+	local spawns = Grid.spawns()
+	for i, plr in ipairs(participants) do
+		S.stats[plr] = Powerups.newStats()
+		local c = spawns[i]
+		local spawnCf = CFrame.new(Grid.cellPos(c[1], c[2]) + Vector3.new(0, 3, 0))
+		local char
+		if S.isBot(plr) then
+			char = Bots.spawn(plr, spawnCf)
+		else
+			local ok = pcall(function()
+				plr:LoadCharacter()
+			end)
+			char = ok and plr.Character
+		end
+		if char then
+			local root = char:WaitForChild("HumanoidRootPart", 5)
+			local hum = char:WaitForChild("Humanoid", 5)
+			if root and hum then
+				local pc = Config.PLAYER_COLORS[i]
+				char:PivotTo(spawnCf)
+				hum.UseJumpPower = true
+				hum.JumpPower = 0
+				colorCharacter(char, pc.color)
+				plr:SetAttribute("Color", pc.color)
+				plr:SetAttribute("ColorName", pc.name) -- a Lang key, e.g. "color_1"
+				plr:SetAttribute("InRound", true)
+				setAlive(plr, true)
+				S.stats[plr].invulUntil = os.clock() + 2
+				local ff = Instance.new("ForceField")
+				ff.Parent = char
+				Debris:AddItem(ff, 2)
+				hum.Died:Connect(function()
+					onDeath(plr)
+				end)
+				Powerups.sync(plr)
+			end
+		end
+	end
+
+	S.roundState = "playing"
+	Net.set("RoundEndsAt", workspace:GetServerTimeNow() + Config.ROUND_TIME)
+	Net.set("SuddenDeath", false)
+	Net.set("State", "playing")
+	Net.announce(msg("go"), 1.5)
+	Sounds.play("Go")
+	if #features > 0 then
+		task.delay(1.6, function()
+			Net.announce(msg("this_round", { list = features }), 3, true)
+		end)
+	end
+	checkRound()
+end
+
+task.spawn(function()
+	while true do
+		while #Players:GetPlayers() == 0 do
+			task.wait(1)
+		end
+		S.roundState = "lobby"
+		Net.set("State", "lobby")
+		for i = 3, 1, -1 do
+			Net.announce(msg("countdown", { n = i }), 1)
+			Sounds.play("Beep")
+			task.wait(1)
+		end
+		startRound()
+		local deadline = os.clock() + Config.ROUND_TIME
+		local sudden = false
+		while S.roundState == "playing" do
+			if not sudden and os.clock() >= deadline then
+				sudden = true
+				task.spawn(suddenDeath)
+			end
+			checkRound()
+			task.wait(0.25)
+		end
+		task.wait(Config.INTERMISSION)
+	end
+end)
+
 ----------------------------------------------------------------------
--- Arena
+-- Players
 ----------------------------------------------------------------------
-local function isSafe(x, z)
-	for _, c in ipairs(CORNERS) do
+Players.PlayerAdded:Connect(function(plr)
+	local ls = Instance.new("Folder")
+	ls.Name = "leaderstats"
+	local wins = Instance.new("IntValue")
+	wins.Name = "Wins"
+	wins.Parent = ls
+	ls.Parent = plr
+	plr:SetAttribute("Alive", false)
+	plr:SetAttribute("InRound", false)
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+	local s = S.stats[plr]
+	if s and s.held then
+		Bombs.explode(s.held)
+	end
+	S.alive[plr] = nil
+	S.stats[plr] = nil
+	-- (the player stays in roundPlayers, so the last one standing still wins)
+	updateAliveCount()
+	checkRound()
+end)
+
+----------------------------------------------------------------------
+-- Main loop
+----------------------------------------------------------------------
+-- Warp zones: whoever stands (almost) in the middle of a warp comes out at the other one
+local function updateWarps(now)
+	if next(S.warps) == nil then
+		return
+	end
+	for plr in pairs(S.alive) do
+		local s = S.stats[plr]
+		local root = S.getRoot(plr)
+		local char = S.charOf(plr)
+		if s and root and char then
+			local x, z = Grid.cellOf(root.Position)
+			local k = Grid.key(x, z)
+			if s.warpCell and s.warpCell ~= k then
+				s.warpCell = nil -- stepped off the warp: it works again
+			end
+			local w = S.warps[k]
+			if w and not s.warpCell and now >= (s.warpReady or 0) and not S.terrain[k] and not S.terrain[Grid.key(w.x, w.z)] then
+				local c = Grid.cellPos(x, z)
+				local off = Vector3.new(root.Position.X - c.X, 0, root.Position.Z - c.Z)
+				if off.Magnitude < Grid.T * 0.3 then
+					local look = root.CFrame.LookVector
+					local dest = Grid.cellPos(w.x, w.z) + Vector3.new(0, root.Position.Y, 0)
+					char:PivotTo(CFrame.lookAt(dest, dest + Vector3.new(look.X, 0, look.Z)))
+					s.warpCell = Grid.key(w.x, w.z)
+					s.warpReady = now + Config.WARP_COOLDOWN
+					Sounds.play("Warp", dest)
+				end
+			end
+		end
+	end
+end
+
+RunService.Heartbeat:Connect(function(dt)
+	local now = os.clock()
+	Bombs.update(now, dt)
+	Bombs.updateFlames(now)
+	Powerups.update(now)
+	Arena.updateToggles(now)
+	updateWarps(now)
+	Bots.update(now, dt)
+
+	-- 💩 curse: drops bombs by itself
+	for plr in pairs(S.alive) do
+		local s = S.stats[plr]
+		if s and s.curse == "autobomb" then
+			Bombs.place(plr, true)
+		end
+	end
+end)
+]]></ProtectedString>
+</Properties></Item><Item class="Folder" referent="RBX17"><Properties><string name="Name">Bomberman</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties>
+<string name="Name">Arena</string>
+<ProtectedString name="Source"><![CDATA[-- Arena: floor, walls, crates, special cells (warps, belts, switch walls),
+-- the random theme of each round and the walls that drop during sudden death
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+local Grid = require(script.Parent.Grid)
+local S = require(script.Parent.State)
+local Net = require(script.Parent.Net)
+local Powerups = require(script.Parent.Powerups)
+local Sounds = require(script.Parent.Sounds)
+
+local T = Grid.T
+local key = Grid.key
+local Arena = {}
+
+local Lighting = game:GetService("Lighting")
+
+-- Themes: each round picks one at random so the arena doesn't always look the same
+local THEMES = {
+	{
+		name = "Grass",
+		floor = { Color3.fromRGB(96, 168, 90), Color3.fromRGB(80, 148, 76) }, floorMat = Enum.Material.Grass,
+		wall = Color3.fromRGB(110, 110, 120), wallMat = Enum.Material.Concrete,
+		crate = Color3.fromRGB(176, 124, 70), crateMat = Enum.Material.WoodPlanks,
+		rim = Color3.fromRGB(60, 60, 72), rimMat = Enum.Material.Slate,
+		clock = 14, ambient = Color3.fromRGB(110, 110, 110),
+	},
+	{
+		name = "Desert",
+		floor = { Color3.fromRGB(226, 196, 132), Color3.fromRGB(212, 180, 116) }, floorMat = Enum.Material.Sand,
+		wall = Color3.fromRGB(176, 120, 80), wallMat = Enum.Material.Sandstone,
+		crate = Color3.fromRGB(120, 160, 80), crateMat = Enum.Material.Grass, -- cactus-coloured bushes
+		rim = Color3.fromRGB(150, 100, 64), rimMat = Enum.Material.Sandstone,
+		clock = 16.5, ambient = Color3.fromRGB(140, 120, 100),
+	},
+	{
+		name = "Snow",
+		floor = { Color3.fromRGB(235, 242, 250), Color3.fromRGB(215, 228, 242) }, floorMat = Enum.Material.Snow,
+		wall = Color3.fromRGB(140, 190, 230), wallMat = Enum.Material.Ice,
+		crate = Color3.fromRGB(190, 120, 80), crateMat = Enum.Material.WoodPlanks,
+		rim = Color3.fromRGB(110, 150, 190), rimMat = Enum.Material.Glacier,
+		clock = 12, ambient = Color3.fromRGB(150, 160, 180),
+	},
+	{
+		name = "Lava",
+		floor = { Color3.fromRGB(70, 60, 60), Color3.fromRGB(58, 50, 50) }, floorMat = Enum.Material.Basalt,
+		wall = Color3.fromRGB(40, 36, 40), wallMat = Enum.Material.Basalt,
+		crate = Color3.fromRGB(200, 80, 30), crateMat = Enum.Material.CrackedLava,
+		rim = Color3.fromRGB(255, 90, 20), rimMat = Enum.Material.Neon,
+		clock = 19, ambient = Color3.fromRGB(120, 70, 60),
+	},
+	{
+		name = "Space",
+		floor = { Color3.fromRGB(40, 36, 70), Color3.fromRGB(32, 28, 58) }, floorMat = Enum.Material.SmoothPlastic,
+		wall = Color3.fromRGB(120, 110, 200), wallMat = Enum.Material.Metal,
+		crate = Color3.fromRGB(80, 200, 220), crateMat = Enum.Material.Glass,
+		rim = Color3.fromRGB(170, 80, 255), rimMat = Enum.Material.Neon,
+		clock = 0, ambient = Color3.fromRGB(110, 100, 150),
+	},
+}
+local theme = THEMES[1]
+local WARP_COLORS = { Color3.fromRGB(170, 80, 255), Color3.fromRGB(40, 220, 255) }
+local TOGGLE_COLOR = Color3.fromRGB(230, 90, 60)
+
+-- Cells around the spawn points stay empty so nobody starts boxed in
+local function isSafe(x, z, spawns)
+	for _, c in ipairs(spawns) do
 		local ax, az = math.abs(x - c[1]), math.abs(z - c[2])
 		if (az == 0 and ax <= 2) or (ax == 0 and az <= 2) or (ax == 2 and az == 1) or (ax == 1 and az == 2) then
 			return true
 		end
 	end
 	return false
+end
+
+local function isFixedWall(x, z)
+	return x % 2 == 0 and z % 2 == 0
 end
 
 local function makePart(size, pos, color, material)
@@ -244,77 +1535,426 @@ local function makePart(size, pos, color, material)
 	p.Position = pos
 	p.Color = color
 	p.Material = material
-	p.Parent = arena
+	p.Parent = S.arena
 	return p
 end
 
-local function buildArena()
-	if arena then
-		arena:Destroy()
+----------------------------------------------------------------------
+-- Planning the special cells (they scale with the arena size)
+----------------------------------------------------------------------
+local function planWarps(reserved)
+	local W, H = Grid.W, Grid.H
+	local xq, zq = Grid.odd(W / 4), Grid.odd(H / 4)
+	local pairs_ = {
+		{ { xq, zq }, { W + 1 - xq, H + 1 - zq } },
+		{ { W + 1 - xq, zq }, { xq, H + 1 - zq } },
+	}
+	for i, pr in ipairs(pairs_) do
+		local a, b = pr[1], pr[2]
+		S.warps[key(a[1], a[2])] = { x = b[1], z = b[2], pair = i }
+		S.warps[key(b[1], b[2])] = { x = a[1], z = a[2], pair = i }
+		reserved[key(a[1], a[2])] = true
+		reserved[key(b[1], b[2])] = true
 	end
-	gen += 1
-	table.clear(terrain)
-	table.clear(crateParts)
-	table.clear(bombs)
-	table.clear(bombAt)
-	table.clear(powerups)
-	table.clear(flames)
+end
 
-	arena = Instance.new("Folder")
-	arena.Name = "Arena"
-	arena.Parent = workspace
+local function planBelts(reserved)
+	local W, H, XM, ZM = Grid.W, Grid.H, Grid.XM, Grid.ZM
+	-- one belt through the middle row, and in big arenas one through the middle column too
+	local dx = math.random() < 0.5 and 1 or -1
+	for x = 3, W - 2 do
+		local k = key(x, ZM)
+		if not reserved[k] then
+			S.belts[k] = { dx = dx, dz = 0 }
+			reserved[k] = true
+		end
+	end
+	if W >= 21 then
+		local dz = math.random() < 0.5 and 1 or -1
+		for z = 3, H - 2 do
+			local k = key(XM, z)
+			if not reserved[k] then
+				S.belts[k] = { dx = 0, dz = dz }
+				reserved[k] = true
+			end
+		end
+	end
+end
 
-	local light = Color3.fromRGB(96, 168, 90)
-	local dark = Color3.fromRGB(80, 148, 76)
+local function planToggles(reserved)
+	local XM, ZM = Grid.XM, Grid.ZM
+	local cells = { { XM - 2, ZM - 2 }, { XM + 2, ZM - 2 }, { XM - 2, ZM + 2 }, { XM + 2, ZM + 2 } }
+	if Grid.W >= 21 then
+		for _, c in ipairs({ { XM - 4, ZM - 2 }, { XM + 4, ZM - 2 }, { XM - 4, ZM + 2 }, { XM + 4, ZM + 2 } }) do
+			cells[#cells + 1] = c
+		end
+	end
+	for _, c in ipairs(cells) do
+		local k = key(c[1], c[2])
+		if Grid.inBounds(c[1], c[2]) and not isFixedWall(c[1], c[2]) and not reserved[k] then
+			S.toggles[k] = { x = c[1], z = c[2], up = false, closed = false }
+			reserved[k] = true
+		end
+	end
+end
+
+-- Ice: a few small patches (a seed cell plus its neighbours). Crates may sit on ice.
+local function planIce(reserved)
+	local open = {}
+	for x = 1, Grid.W do
+		for z = 1, Grid.H do
+			if not isFixedWall(x, z) and not reserved[key(x, z)] then
+				open[#open + 1] = { x, z }
+			end
+		end
+	end
+	local target = math.floor(#open * Config.ICE_SHARE)
+	local count, tries = 0, 0
+	while count < target and tries < 200 do
+		tries += 1
+		local c = open[math.random(#open)]
+		for _, d in ipairs({ { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+			local x, z = c[1] + d[1], c[2] + d[2]
+			local k = key(x, z)
+			if Grid.inBounds(x, z) and not isFixedWall(x, z) and not reserved[k] and not S.ice[k] then
+				S.ice[k] = true
+				count += 1
+			end
+		end
+	end
+end
+
+----------------------------------------------------------------------
+-- Building the parts
+----------------------------------------------------------------------
+local function buildWarp(x, z, pair)
+	local color = WARP_COLORS[pair] or WARP_COLORS[1]
+	local pad = makePart(Vector3.new(0.3, T - 0.6, T - 0.6), Grid.cellPos(x, z) + Vector3.new(0, 0.15, 0), color, Enum.Material.Neon)
+	pad.Name = "Warp"
+	pad.Shape = Enum.PartType.Cylinder
+	pad.Orientation = Vector3.new(0, 0, 90)
+	pad.CanCollide = false
+	pad.CanQuery = false
+	local att = Instance.new("Attachment")
+	att.Parent = pad
+	local pe = Instance.new("ParticleEmitter")
+	pe.Rate = 18
+	pe.Lifetime = NumberRange.new(0.6, 1)
+	pe.Speed = NumberRange.new(4, 6)
+	pe.EmissionDirection = Enum.NormalId.Right -- because of the rotation this is "up"
+	pe.SpreadAngle = Vector2.new(15, 15)
+	pe.LightEmission = 1
+	pe.Color = ColorSequence.new(color)
+	pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
+	pe.Parent = att
+end
+
+local function buildBelt(x, z, b)
+	local pos = Grid.cellPos(x, z)
+	local base = makePart(Vector3.new(T, 0.2, T), pos + Vector3.new(0, 0.1, 0), Color3.fromRGB(45, 45, 55), Enum.Material.DiamondPlate)
+	base.Name = "Belt"
+	base.CanCollide = false
+	base.CanQuery = false
+	-- glowing stripes that slide over the belt in its direction
+	local dir = Vector3.new(b.dx, 0, b.dz)
+	local across = b.dx ~= 0 and Vector3.new(0.4, 0.06, T - 0.6) or Vector3.new(T - 0.6, 0.06, 0.4)
+	for i = 0, 1 do
+		local stripe = makePart(across, pos + Vector3.new(0, 0.23, 0) - dir * (T / 2 - 0.3), Color3.fromRGB(255, 210, 60), Enum.Material.Neon)
+		stripe.Name = "BeltStripe"
+		stripe.CanCollide = false
+		stripe.CanQuery = false
+		local tween = TweenService:Create(stripe, TweenInfo.new(T / Config.BELT_SPEED, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), {
+			Position = pos + Vector3.new(0, 0.23, 0) + dir * (T / 2 - 0.3),
+		})
+		task.delay(i * (T / Config.BELT_SPEED) / 2, function()
+			if stripe.Parent then
+				tween:Play()
+			end
+		end)
+	end
+end
+
+local function toggleDownPos(x, z)
+	return Grid.cellPos(x, z) + Vector3.new(0, -T / 2 + 0.15, 0)
+end
+
+local function buildToggle(tg)
+	local p = makePart(Vector3.new(T - 0.1, T, T - 0.1), toggleDownPos(tg.x, tg.z), TOGGLE_COLOR, Enum.Material.Metal)
+	p.Name = "ToggleWall"
+	p.CanCollide = false
+	tg.part = p
+end
+
+function Arena.build(playerCount)
+	if S.arena then
+		S.arena:Destroy()
+	end
+	S.gen += 1
+	for _, t in ipairs({ S.terrain, S.crateParts, S.bombs, S.bombAt, S.powerups, S.flames, S.warps, S.belts, S.toggles, S.ice }) do
+		table.clear(t)
+	end
+
+	local W, H = Grid.sizeFor(playerCount)
+	Grid.setSize(W, H)
+
+	theme = THEMES[math.random(#THEMES)]
+	Lighting.ClockTime = theme.clock
+	Lighting.Ambient = theme.ambient
+	Lighting.OutdoorAmbient = theme.ambient
+
+	S.arena = Instance.new("Folder")
+	S.arena.Name = "Arena"
+	S.arena.Parent = workspace
+
+	-- pick a theme and the special cells for this round
+	local reserved = {}
+	local features = {}
+	for name, chance in pairs(Config.FEATURE_CHANCE) do
+		features[name] = math.random() < chance
+	end
+	if features.Warps then
+		planWarps(reserved)
+	end
+	if features.Belts then
+		planBelts(reserved)
+	end
+	if features.Toggles then
+		planToggles(reserved)
+	end
+	if features.Ice then
+		planIce(reserved)
+	end
+
+	local spawns = Grid.spawns()
+	local light, dark = theme.floor[1], theme.floor[2]
 	for x = 1, W do
 		for z = 1, H do
-			local floor = makePart(Vector3.new(T, 1, T), cellPos(x, z) + Vector3.new(0, -0.5, 0), (x + z) % 2 == 0 and light or dark, Enum.Material.Grass)
+			local k = key(x, z)
+			local floor = makePart(Vector3.new(T, 1, T), Grid.cellPos(x, z) + Vector3.new(0, -0.5, 0), (x + z) % 2 == 0 and light or dark, theme.floorMat)
 			floor.Name = "Floor"
-			if x % 2 == 0 and z % 2 == 0 then
-				terrain[key(x, z)] = "wall"
-				local w = makePart(Vector3.new(T, T, T), cellPos(x, z) + Vector3.new(0, T / 2, 0), Color3.fromRGB(110, 110, 120), Enum.Material.Concrete)
+			if S.ice[k] then
+				floor.Color = Color3.fromRGB(170, 220, 255)
+				floor.Material = Enum.Material.Ice
+				floor.Reflectance = 0.25
+			end
+			if isFixedWall(x, z) then
+				S.terrain[k] = "wall"
+				local w = makePart(Vector3.new(T, T, T), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), theme.wall, theme.wallMat)
 				w.Name = "Wall"
-			elseif not isSafe(x, z) and math.random() < Config.CRATE_CHANCE then
-				terrain[key(x, z)] = "crate"
-				local c = makePart(Vector3.new(T - 0.1, T - 0.1, T - 0.1), cellPos(x, z) + Vector3.new(0, T / 2, 0), Color3.fromRGB(176, 124, 70), Enum.Material.WoodPlanks)
+			elseif not reserved[k] and not isSafe(x, z, spawns) and math.random() < Config.CRATE_CHANCE then
+				S.terrain[k] = "crate"
+				local c = makePart(Vector3.new(T - 0.1, T - 0.1, T - 0.1), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), theme.crate, theme.crateMat)
 				c.Name = "Crate"
-				crateParts[key(x, z)] = c
+				S.crateParts[k] = c
 			end
 		end
 	end
 
-	-- buitenrand
+	for k, w in pairs(S.warps) do
+		local x, z = Grid.unkey(k)
+		buildWarp(x, z, w.pair)
+	end
+	local beltList = {}
+	for k, b in pairs(S.belts) do
+		local x, z = Grid.unkey(k)
+		buildBelt(x, z, b)
+		beltList[#beltList + 1] = string.format("%d,%d,%d,%d", x, z, b.dx, b.dz)
+	end
+	for _, tg in pairs(S.toggles) do
+		buildToggle(tg)
+	end
+
+	-- outer rim
 	local hw, hh = W * T / 2, H * T / 2
-	local rim = Color3.fromRGB(60, 60, 72)
-	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, -hh - T / 2), rim, Enum.Material.Slate)
-	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, hh + T / 2), rim, Enum.Material.Slate)
-	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(-hw - T / 2, T, 0), rim, Enum.Material.Slate)
-	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(hw + T / 2, T, 0), rim, Enum.Material.Slate)
+	local rim, rimMat = theme.rim, theme.rimMat
+	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, -hh - T / 2), rim, rimMat)
+	makePart(Vector3.new(W * T + 2 * T, 2 * T, T), Vector3.new(0, T, hh + T / 2), rim, rimMat)
+	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(-hw - T / 2, T, 0), rim, rimMat)
+	makePart(Vector3.new(T, 2 * T, H * T), Vector3.new(hw + T / 2, T, 0), rim, rimMat)
+
+	-- clients need the size and the belts (camera, corner assist, being pushed)
+	Net.set("ArenaW", W)
+	Net.set("ArenaH", H)
+	Net.set("Belts", table.concat(beltList, ";"))
+	local iceList = {}
+	for k in pairs(S.ice) do
+		local x, z = Grid.unkey(k)
+		iceList[#iceList + 1] = x .. "," .. z
+	end
+	Net.set("Ice", table.concat(iceList, ";"))
+
+	local names = {}
+	if features.Warps then
+		names[#names + 1] = { k = "feat_warps" }
+	end
+	if features.Belts then
+		names[#names + 1] = { k = "feat_belts" }
+	end
+	if features.Toggles then
+		names[#names + 1] = { k = "feat_toggles" }
+	end
+	if features.Ice then
+		names[#names + 1] = { k = "feat_ice" }
+	end
+	return names
 end
 
-local function destroyCrate(x, z)
-	local k = key(x, z)
-	terrain[k] = nil
-	local part = crateParts[k]
-	crateParts[k] = nil
+local function removeCratePart(k)
+	local part = S.crateParts[k]
+	S.crateParts[k] = nil
 	if part then
 		TweenService:Create(part, TweenInfo.new(0.3), { Transparency = 1, Size = part.Size * 0.6 }):Play()
 		Debris:AddItem(part, 0.4)
 	end
+end
+
+function Arena.destroyCrate(x, z)
+	local k = key(x, z)
+	S.terrain[k] = nil
+	removeCratePart(k)
 	if math.random() < Config.DROP_CHANCE then
-		local kind = pickPowerup()
-		local myGen = gen
+		local kind = Powerups.pick()
+		local myGen = S.gen
 		task.delay(Config.FLAME_TIME + 0.05, function()
-			if myGen == gen and not terrain[k] and not powerups[k] and not bombAt[k] then
-				spawnPowerup(x, z, kind)
+			if myGen == S.gen and not S.terrain[k] and not S.powerups[k] and not S.bombAt[k] then
+				Powerups.spawn(x, z, kind)
 			end
 		end)
 	end
 end
 
 ----------------------------------------------------------------------
--- Bommen
+-- Switch walls: every TOGGLE_INTERVAL seconds they all go up or down.
+-- A wall only rises when nobody (and no bomb) is on its cell.
 ----------------------------------------------------------------------
+local togglePhaseUp, nextToggle = false, 0
+
+function Arena.resetToggles(now)
+	togglePhaseUp = false
+	nextToggle = now + Config.TOGGLE_INTERVAL
+end
+
+function Arena.updateToggles(now)
+	if next(S.toggles) == nil then
+		return
+	end
+	if now >= nextToggle then
+		togglePhaseUp = not togglePhaseUp
+		nextToggle = now + Config.TOGGLE_INTERVAL
+		for _, tg in pairs(S.toggles) do
+			tg.pending = true
+		end
+	end
+	for k, tg in pairs(S.toggles) do
+		if tg.pending and not tg.closed then
+			if togglePhaseUp then
+				-- wait until the cell is empty
+				if not S.bombAt[k] and not S.playerOnCell(Grid.cellOf, tg.x, tg.z) then
+					tg.pending = false
+					tg.up = true
+					S.terrain[k] = "wall"
+					Powerups.remove(k)
+					tg.part.CanCollide = true
+					TweenService:Create(tg.part, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+						Position = Grid.cellPos(tg.x, tg.z) + Vector3.new(0, T / 2, 0),
+					}):Play()
+					Sounds.play("Toggle", tg.part.Position)
+				end
+			else
+				tg.pending = false
+				if tg.up then
+					tg.up = false
+					S.terrain[k] = nil
+					tg.part.CanCollide = false
+					TweenService:Create(tg.part, TweenInfo.new(0.3), { Position = toggleDownPos(tg.x, tg.z) }):Play()
+				end
+			end
+		end
+	end
+end
+
+-- Sudden death: drop a wall block on this cell. Returns false if a fixed wall was already there.
+function Arena.closeCell(x, z)
+	local k = key(x, z)
+	local tg = S.toggles[k]
+	if tg then
+		tg.closed = true
+		if tg.part then
+			tg.part:Destroy()
+		end
+	elseif S.terrain[k] == "wall" then
+		return false
+	end
+	if S.terrain[k] == "crate" then
+		removeCratePart(k)
+	end
+	S.terrain[k] = "wall"
+	Powerups.remove(k)
+
+	local target = Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0)
+	local w = makePart(Vector3.new(T, T, T), target + Vector3.new(0, 24, 0), Color3.fromRGB(150, 60, 60), Enum.Material.Concrete)
+	w.Name = "DeathWall"
+	w.CanCollide = false
+	TweenService:Create(w, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = target }):Play()
+	task.delay(0.25, function()
+		if w.Parent then
+			w.CanCollide = true
+		end
+	end)
+	Sounds.play("Wall", target)
+	return true
+end
+
+return Arena
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX2"><Properties>
+<string name="Name">Bombs</string>
+<ProtectedString name="Source"><![CDATA[-- Bombs: placing, throwing, kicking, exploding, and the fire
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+local Grid = require(script.Parent.Grid)
+local S = require(script.Parent.State)
+local Powerups = require(script.Parent.Powerups)
+local Arena = require(script.Parent.Arena)
+local Sounds = require(script.Parent.Sounds)
+
+local T = Grid.T
+local key = Grid.key
+local BOMB_Y = Vector3.new(0, 1.6, 0)
+
+local Bombs = {}
+
+----------------------------------------------------------------------
+-- Helpers
+----------------------------------------------------------------------
+
+-- Is this cell already the landing spot of a thrown bomb?
+local function isTargeted(x, z)
+	for b in pairs(S.bombs) do
+		if b.state == "flying" and b.x == x and b.z == z then
+			return true
+		end
+	end
+	return false
+end
+
+-- Free cell for a bomb: no wall/crate, no other bomb (and optionally no player)
+local function cellFree(x, z, checkPlayers)
+	if not Grid.inBounds(x, z) then
+		return false
+	end
+	local k = key(x, z)
+	if S.terrain[k] or S.bombAt[k] or isTargeted(x, z) then
+		return false
+	end
+	if checkPlayers and S.playerOnCell(Grid.cellOf, x, z) then
+		return false
+	end
+	return true
+end
+
 local function newBombPart()
 	local p = Instance.new("Part")
 	p.Name = "Bomb"
@@ -324,6 +1964,14 @@ local function newBombPart()
 	p.Color = Color3.fromRGB(25, 25, 30)
 	p.Anchored = true
 	p.CanCollide = false
+
+	-- Only the mesh pulses; the part's collision shape stays the same
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = p
+	TweenService:Create(mesh, TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		Scale = Vector3.new(1.16, 1.16, 1.16),
+	}):Play()
 
 	local att = Instance.new("Attachment")
 	att.Position = Vector3.new(0, 1.6, 0)
@@ -342,18 +1990,15 @@ local function newBombPart()
 	pl.Range = 8
 	pl.Parent = p
 
-	TweenService:Create(p, TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-		Size = Vector3.new(3.7, 3.7, 3.7),
-	}):Play()
 	TweenService:Create(p, TweenInfo.new(Config.FUSE, Enum.EasingStyle.Linear), { Color = Color3.fromRGB(210, 30, 30) }):Play()
-	p.Parent = arena
+	p.Parent = S.arena
 	return p
 end
 
 local function spawnBomb(player, x, z)
-	local s = stats[player]
+	local s = S.stats[player]
 	local part = newBombPart()
-	part.Position = cellPos(x, z) + Vector3.new(0, 1.6, 0)
+	part.Position = Grid.cellPos(x, z) + BOMB_Y
 	local bomb = {
 		owner = player,
 		holder = nil,
@@ -362,13 +2007,14 @@ local function spawnBomb(player, x, z)
 		range = s.range,
 		pierce = s.pierce,
 		explodeAt = os.clock() + Config.FUSE,
-		state = "placed", -- placed | held | flying
+		state = "placed", -- placed | held | flying | sliding
 		solid = false,
 		part = part,
 	}
-	bombAt[key(x, z)] = bomb
-	bombs[bomb] = true
+	S.bombAt[key(x, z)] = bomb
+	S.bombs[bomb] = true
 	s.active += 1
+	Sounds.play("Place", part.Position)
 end
 
 local function spawnFlame(x, z)
@@ -377,62 +2023,77 @@ local function spawnFlame(x, z)
 	f.Anchored = true
 	f.CanCollide = false
 	f.CanTouch = false
+	f.CanQuery = false
 	f.Material = Enum.Material.Neon
 	f.Color = Color3.fromRGB(255, 140, 30)
 	f.Size = Vector3.new(T - 0.8, 2.4, T - 0.8)
-	f.Position = cellPos(x, z) + Vector3.new(0, 1.2, 0)
+	f.Position = Grid.cellPos(x, z) + Vector3.new(0, 1.2, 0)
 	f.Transparency = 0.05
-	f.Parent = arena
+	f.Parent = S.arena
 	TweenService:Create(f, TweenInfo.new(Config.FLAME_TIME), { Transparency = 1 }):Play()
 	Debris:AddItem(f, Config.FLAME_TIME + 0.1)
 end
 
-local function explode(bomb)
+----------------------------------------------------------------------
+-- Exploding
+----------------------------------------------------------------------
+function Bombs.explode(bomb)
 	if bomb.exploded then
 		return
 	end
 	bomb.exploded = true
-	bombs[bomb] = nil
+	S.bombs[bomb] = nil
 	local k = key(bomb.x, bomb.z)
-	if bombAt[k] == bomb then
-		bombAt[k] = nil
+	if S.bombAt[k] == bomb then
+		S.bombAt[k] = nil
 	end
-	local os_ = stats[bomb.owner]
+	local os_ = S.stats[bomb.owner]
 	if os_ then
 		os_.active = math.max(0, os_.active - 1)
 	end
 	if bomb.holder then
-		local hs = stats[bomb.holder]
+		local hs = S.stats[bomb.holder]
 		if hs and hs.held == bomb then
 			hs.held = nil
 		end
 	end
+	local center = bomb.part.Position
 	bomb.part:Destroy()
+
+	-- Roblox explosion just for looks and sound (does no damage)
+	local e = Instance.new("Explosion")
+	e.Position = center
+	e.BlastRadius = 3
+	e.BlastPressure = 0
+	e.DestroyJointRadiusPercent = 0
+	e.ExplosionType = Enum.ExplosionType.NoCraters
+	e.Parent = S.arena
+	Sounds.play("Explosion", center)
 
 	local cells = { { bomb.x, bomb.z } }
 	local chain = {}
-	for _, d in ipairs(DIRS) do
+	for _, d in ipairs(Grid.DIRS) do
 		for i = 1, bomb.range do
 			local cx, cz = bomb.x + d[1] * i, bomb.z + d[2] * i
-			if not inBounds(cx, cz) then
+			if not Grid.inBounds(cx, cz) then
 				break
 			end
 			local ck = key(cx, cz)
-			local t = terrain[ck]
+			local t = S.terrain[ck]
 			if t == "wall" then
 				break
 			elseif t == "crate" then
-				destroyCrate(cx, cz)
+				Arena.destroyCrate(cx, cz)
 				cells[#cells + 1] = { cx, cz }
 				if not bomb.pierce then
 					break
 				end
 			else
 				cells[#cells + 1] = { cx, cz }
-				if powerups[ck] then
-					removePowerup(ck)
+				if S.powerups[ck] then
+					Powerups.remove(ck, true) -- fire burns goodies
 				end
-				local ob = bombAt[ck]
+				local ob = S.bombAt[ck]
 				if ob then
 					chain[#chain + 1] = ob
 					break
@@ -446,103 +2107,173 @@ local function explode(bomb)
 		set[key(c[1], c[2])] = true
 		spawnFlame(c[1], c[2])
 	end
-	flames[#flames + 1] = { cells = set, expires = os.clock() + Config.FLAME_TIME }
+	S.flames[#S.flames + 1] = { cells = set, expires = os.clock() + Config.FLAME_TIME }
 
 	for _, ob in ipairs(chain) do
-		explode(ob)
+		Bombs.explode(ob)
 	end
 end
 
-local function placeBomb(player)
-	local s = stats[player]
-	if not s or not alive[player] or roundState ~= "playing" then
-		return
-	end
+----------------------------------------------------------------------
+-- Player actions
+----------------------------------------------------------------------
+local function rateLimited(s)
 	if os.clock() - s.lastAction < 0.15 then
-		return
+		return true
 	end
 	s.lastAction = os.clock()
+	return false
+end
+
+-- force = true: for the "auto bombs" curse and bots (no rate limit)
+function Bombs.place(player, force)
+	local s = S.stats[player]
+	if not s or not S.alive[player] or S.roundState ~= "playing" then
+		return
+	end
+	if s.curse == "nobombs" then
+		return
+	end
+	if not force and rateLimited(s) then
+		return
+	end
 	if s.active >= s.maxBombs then
 		return
 	end
-	local root = getRoot(player)
+	local root = S.getRoot(player)
 	if not root then
 		return
 	end
-	local x, z = cellOf(root.Position)
-	if not inBounds(x, z) or terrain[key(x, z)] or bombAt[key(x, z)] then
+	local x, z = Grid.cellOf(root.Position)
+	if not cellFree(x, z, false) then
 		return
 	end
 	spawnBomb(player, x, z)
 end
 
-local function throwAction(player)
-	local s = stats[player]
-	if not s or not alive[player] or not s.throw or roundState ~= "playing" then
-		return
-	end
-	if os.clock() - s.lastAction < 0.15 then
-		return
-	end
-	s.lastAction = os.clock()
-	local root = getRoot(player)
-	if not root then
-		return
-	end
-
-	local look = root.CFrame.LookVector
-	local dx, dz = 0, 0
-	if math.abs(look.X) > math.abs(look.Z) then
-		dx = look.X > 0 and 1 or -1
-	else
-		dz = look.Z > 0 and 1 or -1
-	end
-	local sx, sz = cellOf(root.Position)
-
-	if s.held then
-		local bomb = s.held
-		local tx, tz
-		local function free(cx, cz)
-			return inBounds(cx, cz) and not terrain[key(cx, cz)] and not bombAt[key(cx, cz)]
+-- Send a bomb flying from cell (sx, sz) in direction (dx, dz), landing at least
+-- minDist cells away. Over the outer wall it comes back in on the opposite side.
+-- Returns false when there is no free landing cell.
+local function launch(bomb, sx, sz, dx, dz, minDist)
+	local tx, tz
+	local wrapped = false
+	local size = dx ~= 0 and Grid.W or Grid.H
+	for step = minDist, size - 1 do
+		local cx, cz = sx + dx * step, sz + dz * step
+		local w = not Grid.inBounds(cx, cz)
+		cx = (cx - 1) % Grid.W + 1
+		cz = (cz - 1) % Grid.H + 1
+		if cellFree(cx, cz, false) then
+			tx, tz, wrapped = cx, cz, w
+			break
 		end
-		for step = Config.THROW_DISTANCE, 14 do
+	end
+	if not tx then
+		for step = minDist - 1, 1, -1 do
 			local cx, cz = sx + dx * step, sz + dz * step
-			if not inBounds(cx, cz) then
-				break
-			end
-			if free(cx, cz) then
+			if cellFree(cx, cz, false) then
 				tx, tz = cx, cz
 				break
 			end
 		end
-		if not tx then
-			for step = Config.THROW_DISTANCE - 1, 0, -1 do
-				local cx, cz = sx + dx * step, sz + dz * step
-				if free(cx, cz) then
-					tx, tz = cx, cz
-					break
-				end
+	end
+	if not tx then
+		return false
+	end
+	bomb.state = "flying"
+	bomb.solid = false
+	bomb.part.CanCollide = false
+	-- Note: while flying the bomb is NOT in bombAt, so fire can't
+	-- set it off in mid-air. It lands on (x, z).
+	bomb.x, bomb.z = tx, tz
+	local from = bomb.part.Position
+	local to = Grid.cellPos(tx, tz) + BOMB_Y
+	if wrapped then
+		-- two pieces: to just past the edge, then from the opposite side to the target
+		local exitPos, entryPos
+		if dx ~= 0 then
+			exitPos = Vector3.new(Grid.cellPos(dx > 0 and Grid.W + 1.5 or -0.5, sz).X, from.Y, from.Z)
+			entryPos = Vector3.new(Grid.cellPos(dx > 0 and -0.5 or Grid.W + 1.5, sz).X, to.Y, to.Z)
+		else
+			exitPos = Vector3.new(from.X, from.Y, Grid.cellPos(sx, dz > 0 and Grid.H + 1.5 or -0.5).Z)
+			entryPos = Vector3.new(to.X, to.Y, Grid.cellPos(sx, dz > 0 and -0.5 or Grid.H + 1.5).Z)
+		end
+		bomb.path = { { from, exitPos, "up" }, { entryPos, to, "down" } }
+	else
+		bomb.path = { { from, to, "arc" } }
+	end
+	local len = 0
+	for _, seg in ipairs(bomb.path) do
+		len += (seg[2] - seg[1]).Magnitude
+	end
+	bomb.pathLen = len
+	bomb.t0 = os.clock()
+	bomb.dur = math.max(0.35, len / Config.THROW_SPEED)
+	Sounds.play("Throw", from)
+	return true
+end
+
+-- The action button (E / 🧤). In order of priority:
+--   holding a bomb      -> throw it
+--   🦶 and your kicked bomb is sliding -> stop it on the next cell
+--   🥊 and a bomb in front of you      -> punch it over the walls
+--   🧤 and a bomb under / in front of you -> pick it up
+function Bombs.throw(player)
+	local s = S.stats[player]
+	if not s or not S.alive[player] or S.roundState ~= "playing" then
+		return
+	end
+	if rateLimited(s) then
+		return
+	end
+	local root = S.getRoot(player)
+	if not root then
+		return
+	end
+
+	local dx, dz = Grid.axisDir(root.CFrame.LookVector)
+	local sx, sz = Grid.cellOf(root.Position)
+
+	if s.held then
+		local bomb = s.held
+		if launch(bomb, sx, sz, dx, dz, Config.THROW_DISTANCE) then
+			s.held = nil
+			bomb.holder = nil
+		end
+		return
+	end
+
+	if s.kick then
+		local stopped = false
+		for b in pairs(S.bombs) do
+			if b.state == "sliding" and b.kicker == player and not b.oneStep then
+				b.stopNext = true
+				stopped = true
 			end
 		end
-		if not tx then
+		if stopped then
 			return
 		end
-		s.held = nil
-		bomb.holder = nil
-		bomb.state = "flying"
-		bomb.solid = false
-		bomb.x, bomb.z = tx, tz
-		bombAt[key(tx, tz)] = bomb
-		bomb.from = bomb.part.Position
-		bomb.to = cellPos(tx, tz) + Vector3.new(0, 1.6, 0)
-		bomb.t0 = os.clock()
-		bomb.dur = math.max(0.35, (bomb.to - bomb.from).Magnitude / Config.THROW_SPEED)
-	else
+	end
+
+	if s.punch then
+		local k = key(sx + dx, sz + dz)
+		local b = S.bombAt[k]
+		if b and b.state == "placed" then
+			S.bombAt[k] = nil
+			if launch(b, b.x, b.z, dx, dz, Config.PUNCH_DISTANCE) then
+				return
+			end
+			S.bombAt[k] = b -- nowhere to land: leave it
+		end
+	end
+
+	if s.throw then
 		for _, c in ipairs({ { sx, sz }, { sx + dx, sz + dz } }) do
 			local k = key(c[1], c[2])
-			local b = bombAt[k]
+			local b = S.bombAt[k]
 			if b and b.state == "placed" then
-				bombAt[k] = nil
+				S.bombAt[k] = nil
 				b.state = "held"
 				b.holder = player
 				b.solid = false
@@ -554,179 +2285,148 @@ local function throwAction(player)
 	end
 end
 
-placeRemote.OnServerEvent:Connect(placeBomb)
-throwRemote.OnServerEvent:Connect(throwAction)
-
-----------------------------------------------------------------------
--- Rondes
-----------------------------------------------------------------------
-local function endRound(winner)
-	if roundState ~= "playing" then
-		return
+-- Make a bomb slide. oneStep = true: only one cell (conveyor belt)
+local function startSlide(bomb, dx, dz, speed, oneStep)
+	if not cellFree(bomb.x + dx, bomb.z + dz, true) then
+		return false
 	end
-	roundState = "over"
-	if winner then
-		local ls = winner:FindFirstChild("leaderstats")
-		if ls and ls:FindFirstChild("Wins") then
-			ls.Wins.Value += 1
+	bomb.state = "sliding"
+	bomb.dx, bomb.dz = dx, dz
+	bomb.slide = 0
+	bomb.slideSpeed = speed
+	bomb.oneStep = oneStep
+	bomb.solid = false
+	bomb.part.CanCollide = false
+	return true
+end
+
+local function kick(bomb, dx, dz, player)
+	if startSlide(bomb, dx, dz, Config.KICK_SPEED, false) then
+		bomb.kicker = player
+		bomb.stopNext = false
+		Sounds.play("Kick", bomb.part.Position)
+	end
+end
+
+-- A sliding bomb that reaches a warp comes out at the other warp
+local function warpBomb(bomb)
+	local w = S.warps[key(bomb.x, bomb.z)]
+	if w and not S.terrain[key(w.x, w.z)] and cellFree(w.x, w.z, false) then
+		if S.bombAt[key(bomb.x, bomb.z)] == bomb then
+			S.bombAt[key(bomb.x, bomb.z)] = nil
 		end
-		announce("🏆 " .. winner.DisplayName .. " wint de ronde!", 5)
-	else
-		announce("Gelijkspel! Volgende ronde komt eraan…", 5)
+		bomb.x, bomb.z = w.x, w.z
+		S.bombAt[key(w.x, w.z)] = bomb
+		Sounds.play("Warp", Grid.cellPos(w.x, w.z))
 	end
 end
 
-local function checkRound()
-	if roundState ~= "playing" then
-		return
-	end
-	local count, last = 0, nil
-	for plr in pairs(alive) do
-		count += 1
-		last = plr
-	end
-	if #roundPlayers >= 2 then
-		if count <= 1 then
-			endRound(last)
-		end
-	elseif count == 0 then
-		endRound(nil)
-	end
-end
-
-local function onDeath(player)
-	if not alive[player] then
-		return
-	end
-	alive[player] = nil
-	local s = stats[player]
-	if s and s.held then
-		explode(s.held)
-	end
-	checkRound()
-end
-
-local function startRound()
-	buildArena()
-	table.clear(alive)
-	table.clear(stats)
-	roundPlayers = {}
-
-	local list = Players:GetPlayers()
-	for i = 1, math.min(#list, Config.MAX_PLAYERS) do
-		roundPlayers[i] = list[i]
-	end
-	for i = Config.MAX_PLAYERS + 1, #list do
-		announce("De arena is vol – je doet mee in een volgende ronde.", 4, true, list[i])
-	end
-
-	for i, plr in ipairs(roundPlayers) do
-		stats[plr] = newStats()
-		local ok = pcall(function()
-			plr:LoadCharacter()
-		end)
-		local char = ok and plr.Character
-		if char then
-			local root = char:WaitForChild("HumanoidRootPart", 5)
-			local hum = char:WaitForChild("Humanoid", 5)
-			if root and hum then
-				local c = CORNERS[i]
-				char:PivotTo(CFrame.new(cellPos(c[1], c[2]) + Vector3.new(0, 3, 0)))
-				hum.UseJumpPower = true
-				hum.JumpPower = 0
-				alive[plr] = true
-				stats[plr].invulUntil = os.clock() + 2
-				local ff = Instance.new("ForceField")
-				ff.Parent = char
-				Debris:AddItem(ff, 2)
-				hum.Died:Connect(function()
-					onDeath(plr)
-				end)
-				syncStats(plr)
+-- Players with the kick shoe who walk into a bomb kick it away
+local function checkKicks()
+	for plr in pairs(S.alive) do
+		local s = S.stats[plr]
+		local root = S.getRoot(plr)
+		local hum = S.getHum(plr)
+		if s and s.kick and root and hum and hum.MoveDirection.Magnitude > 0.5 then
+			local dx, dz = Grid.axisDir(hum.MoveDirection)
+			local px, pz = Grid.cellOf(root.Position)
+			local b = S.bombAt[key(px + dx, pz + dz)]
+			if b and b.state == "placed" and b.solid then
+				local center = Grid.cellPos(b.x, b.z)
+				local along = math.abs(dx ~= 0 and (center.X - root.Position.X) or (center.Z - root.Position.Z))
+				local side = math.abs(dx ~= 0 and (center.Z - root.Position.Z) or (center.X - root.Position.X))
+				if along < T * 0.85 and side < T * 0.45 then
+					kick(b, dx, dz, plr)
+				end
 			end
 		end
 	end
-
-	roundState = "playing"
-	announce("GO! 💣", 1.5)
-	checkRound()
 end
 
-task.spawn(function()
-	while true do
-		while #Players:GetPlayers() == 0 do
-			task.wait(1)
-		end
-		roundState = "lobby"
-		for i = 3, 1, -1 do
-			announce("Ronde begint over " .. i .. "…", 1)
-			task.wait(1)
-		end
-		startRound()
-		while roundState == "playing" do
-			task.wait(0.25)
-		end
-		task.wait(Config.INTERMISSION)
-	end
-end)
-
-Players.PlayerAdded:Connect(function(plr)
-	local ls = Instance.new("Folder")
-	ls.Name = "leaderstats"
-	local wins = Instance.new("IntValue")
-	wins.Name = "Wins"
-	wins.Parent = ls
-	ls.Parent = plr
-	task.delay(3, function()
-		if plr.Parent and roundState == "playing" and not alive[plr] then
-			announce("Er is een ronde bezig – je doet mee in de volgende!", 4, true, plr)
-		end
-	end)
-end)
-
-Players.PlayerRemoving:Connect(function(plr)
-	alive[plr] = nil
-	local s = stats[plr]
-	if s and s.held then
-		explode(s.held)
-	end
-	stats[plr] = nil
-	checkRound()
-end)
-
 ----------------------------------------------------------------------
--- Hoofdlus
+-- Every frame
 ----------------------------------------------------------------------
-RunService.Heartbeat:Connect(function()
-	local now = os.clock()
+function Bombs.update(now, dt)
+	checkKicks()
 
-	-- bommen
 	local list = {}
-	for b in pairs(bombs) do
+	for b in pairs(S.bombs) do
 		list[#list + 1] = b
 	end
 	for _, bomb in ipairs(list) do
 		if not bomb.exploded then
 			if bomb.state == "held" then
-				local root = bomb.holder and getRoot(bomb.holder)
-				if not root or not alive[bomb.holder] then
-					explode(bomb)
+				local root = bomb.holder and S.getRoot(bomb.holder)
+				if not root or not S.alive[bomb.holder] then
+					Bombs.explode(bomb)
 				else
 					bomb.part.Position = root.Position + Vector3.new(0, 3.6, 0)
-					local x, z = cellOf(root.Position)
-					bomb.x, bomb.z = math.clamp(x, 1, W), math.clamp(z, 1, H)
+					local x, z = Grid.cellOf(root.Position)
+					bomb.x, bomb.z = math.clamp(x, 1, Grid.W), math.clamp(z, 1, Grid.H)
 				end
 			elseif bomb.state == "flying" then
 				local a = math.clamp((now - bomb.t0) / bomb.dur, 0, 1)
-				local pos = bomb.from:Lerp(bomb.to, a) + Vector3.new(0, math.sin(math.pi * a) * 6, 0)
-				bomb.part.Position = pos
-				if a >= 1 then
-					bomb.state = "placed"
+				-- find which piece of the path the bomb is on
+				local dist = a * bomb.pathLen
+				for _, seg in ipairs(bomb.path) do
+					local segLen = math.max((seg[2] - seg[1]).Magnitude, 0.001)
+					if dist <= segLen or seg == bomb.path[#bomb.path] then
+						local f = math.clamp(dist / segLen, 0, 1)
+						local h
+						if seg[3] == "up" then
+							h = math.sin(math.pi / 2 * f) * 12 -- high over the outer wall
+						elseif seg[3] == "down" then
+							h = math.cos(math.pi / 2 * f) * 12
+						else
+							h = math.sin(math.pi * f) * 6
+						end
+						bomb.part.Position = seg[1]:Lerp(seg[2], f) + Vector3.new(0, h, 0)
+						break
+					end
+					dist -= segLen
 				end
+				if a >= 1 then
+					local k = key(bomb.x, bomb.z)
+					if S.terrain[k] or S.bombAt[k] then
+						-- a wall or bomb appeared on the landing spot in the meantime
+						Bombs.explode(bomb)
+					else
+						S.bombAt[k] = bomb
+						bomb.state = "placed"
+					end
+				end
+			elseif bomb.state == "sliding" then
+				bomb.slide += bomb.slideSpeed * dt
+				while bomb.slide >= 1 and bomb.state == "sliding" do
+					bomb.slide -= 1
+					local k = key(bomb.x, bomb.z)
+					if S.bombAt[k] == bomb then
+						S.bombAt[k] = nil
+					end
+					bomb.x, bomb.z = bomb.x + bomb.dx, bomb.z + bomb.dz
+					S.bombAt[key(bomb.x, bomb.z)] = bomb
+					warpBomb(bomb)
+					if bomb.oneStep or bomb.stopNext or not cellFree(bomb.x + bomb.dx, bomb.z + bomb.dz, true) then
+						bomb.state = "placed"
+						bomb.slide = 0
+					end
+				end
+				local here = Grid.cellPos(bomb.x, bomb.z)
+				if bomb.state == "sliding" then
+					local nextPos = Grid.cellPos(bomb.x + bomb.dx, bomb.z + bomb.dz)
+					bomb.part.Position = here:Lerp(nextPos, bomb.slide) + BOMB_Y
+				else
+					bomb.part.Position = here + BOMB_Y
+				end
+			elseif bomb.state == "placed" and S.belts[key(bomb.x, bomb.z)] then
+				-- a bomb on a conveyor belt moves along one cell at a time
+				local b = S.belts[key(bomb.x, bomb.z)]
+				startSlide(bomb, b.dx, b.dz, Config.BELT_BOMB_SPEED, true)
 			elseif bomb.state == "placed" and not bomb.solid then
+				-- only solid once nobody stands on it (so you can walk off your own bomb)
 				local clear = true
-				for plr in pairs(alive) do
-					local root = getRoot(plr)
+				for plr in pairs(S.alive) do
+					local root = S.getRoot(plr)
 					if root then
 						local d = Vector3.new(root.Position.X - bomb.part.Position.X, 0, root.Position.Z - bomb.part.Position.Z)
 						if d.Magnitude < 3 then
@@ -741,24 +2441,26 @@ RunService.Heartbeat:Connect(function()
 				end
 			end
 			if not bomb.exploded and now >= bomb.explodeAt then
-				explode(bomb)
+				Bombs.explode(bomb)
 			end
 		end
 	end
+end
 
-	-- vuur
-	for i = #flames, 1, -1 do
-		local f = flames[i]
+-- Fire kills players standing in it
+function Bombs.updateFlames(now)
+	for i = #S.flames, 1, -1 do
+		local f = S.flames[i]
 		if now >= f.expires then
-			table.remove(flames, i)
+			table.remove(S.flames, i)
 		else
-			for plr in pairs(alive) do
-				local s = stats[plr]
-				local root = getRoot(plr)
+			for plr in pairs(S.alive) do
+				local s = S.stats[plr]
+				local root = S.getRoot(plr)
 				if root and s and now >= s.invulUntil then
-					local x, z = cellOf(root.Position)
+					local x, z = Grid.cellOf(root.Position)
 					if f.cells[key(x, z)] then
-						local hum = getHum(plr)
+						local hum = S.getHum(plr)
 						if hum then
 							hum.Health = 0
 						end
@@ -767,63 +2469,1269 @@ RunService.Heartbeat:Connect(function()
 			end
 		end
 	end
+end
 
-	-- goodies oppakken
-	for plr in pairs(alive) do
-		local root = getRoot(plr)
-		local s = stats[plr]
-		if root and s then
-			local x, z = cellOf(root.Position)
-			local k = key(x, z)
-			local pu = powerups[k]
-			if pu then
-				local def = POWERUPS[pu.kind]
-				def.apply(s)
-				removePowerup(k)
-				syncStats(plr)
-				announce(def.emoji .. " " .. def.name, 1.8, true, plr)
+return Bombs
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX3"><Properties>
+<string name="Name">Bots</string>
+<ProtectedString name="Source"><![CDATA[-- Computer opponents ("bots").
+-- A bot is a Folder that stands in for a Player: it is used as the key in
+-- S.stats / S.alive, holds the same attributes (Color, Bombs, ...) and has a
+-- leaderstats folder with Wins. Its character model is kept in S.botChars.
+--
+-- Every BOT_THINK seconds each bot looks at the grid and picks one goal:
+--   1. standing in danger  -> walk to the nearest safe cell
+--   2. goodie nearby       -> pick it up
+--   3. enemy or crate in reach and an escape route exists -> place a bomb
+--   4. otherwise           -> walk towards the nearest enemy / crate
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
+local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+local Grid = require(script.Parent.Grid)
+local S = require(script.Parent.State)
+local Bombs = require(script.Parent.Bombs)
+
+local key = Grid.key
+local Bots = {}
+
+local folder = Instance.new("Folder")
+folder.Name = "Bots"
+folder.Parent = ServerStorage
+
+local botList = {} -- all bot Folders ever made, so their wins are kept between rounds
+local brain = {} -- bot -> { nextThink, target = {x, z} }
+
+local BOT_NAMES = { "Bommetje", "Knaller", "Vonk", "Lontje", "Boemboem", "Sissy", "Kaboom" }
+
+----------------------------------------------------------------------
+-- Creating bots
+----------------------------------------------------------------------
+function Bots.get(count)
+	while #botList < count do
+		local i = #botList + 1
+		local bot = Instance.new("Folder")
+		bot.Name = "Bot" .. i
+		bot:SetAttribute("DisplayName", "🤖 " .. (BOT_NAMES[i] or ("Bot " .. i)))
+		local ls = Instance.new("Folder")
+		ls.Name = "leaderstats"
+		local wins = Instance.new("IntValue")
+		wins.Name = "Wins"
+		wins.Parent = ls
+		ls.Parent = bot
+		bot.Parent = folder
+		botList[i] = bot
+	end
+	local out = {}
+	for i = 1, count do
+		out[i] = botList[i]
+	end
+	return out
+end
+
+function Bots.all()
+	return botList
+end
+
+-- Build a character model for the bot at the given CFrame
+function Bots.spawn(bot, cframe)
+	local old = S.botChars[bot]
+	if old then
+		old:Destroy()
+	end
+	local desc = Instance.new("HumanoidDescription")
+	local ok, model = pcall(function()
+		return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
+	end)
+	if not ok or not model then
+		warn("Roblomberman: could not create bot character", model)
+		return nil
+	end
+	model.Name = bot.Name
+	local hum = model:FindFirstChildOfClass("Humanoid")
+	hum.DisplayName = S.nameOf(bot)
+	hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+	model.Parent = workspace
+	model:PivotTo(cframe)
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if root then
+		root:SetNetworkOwner(nil) -- the server moves bots
+	end
+	S.botChars[bot] = model
+	brain[bot] = { nextThink = 0 }
+	return model
+end
+
+function Bots.clearCharacters()
+	for bot, model in pairs(S.botChars) do
+		model:Destroy()
+		S.botChars[bot] = nil
+	end
+	table.clear(brain)
+end
+
+----------------------------------------------------------------------
+-- Grid knowledge
+----------------------------------------------------------------------
+-- Cells a bomb at (x, z) would hit, same rules as Bombs.explode
+local function blastCells(x, z, range, pierce, out)
+	out[key(x, z)] = true
+	for _, d in ipairs(Grid.DIRS) do
+		for i = 1, range do
+			local cx, cz = x + d[1] * i, z + d[2] * i
+			if not Grid.inBounds(cx, cz) then
+				break
+			end
+			local t = S.terrain[key(cx, cz)]
+			if t == "wall" then
+				break
+			end
+			out[key(cx, cz)] = true
+			if (t == "crate" and not pierce) or S.bombAt[key(cx, cz)] then
+				break
 			end
 		end
 	end
-end)
+	return out
+end
+
+-- Every cell that is on fire or will be hit by a bomb that is already ticking
+local function dangerMap()
+	local danger = {}
+	for b in pairs(S.bombs) do
+		if not b.exploded then
+			blastCells(b.x, b.z, b.range, b.pierce, danger)
+		end
+	end
+	for _, f in ipairs(S.flames) do
+		for k in pairs(f.cells) do
+			danger[k] = true
+		end
+	end
+	return danger
+end
+
+local function fireNow()
+	local fire = {}
+	for _, f in ipairs(S.flames) do
+		for k in pairs(f.cells) do
+			fire[k] = true
+		end
+	end
+	return fire
+end
+
+local function walkable(x, z, fire)
+	if not Grid.inBounds(x, z) then
+		return false
+	end
+	local k = key(x, z)
+	return not S.terrain[k] and not S.bombAt[k] and not fire[k]
+end
+
+-- Breadth-first search from (sx, sz). goal(x, z, k) returns true for a target cell.
+-- avoid[k] = true marks cells we do not want to walk through.
+-- Returns the first step {x, z} and the path length, or nil.
+local function bfs(sx, sz, goal, fire, avoid, maxLen)
+	local start = key(sx, sz)
+	local prev = { [start] = false }
+	local dist = { [start] = 0 }
+	local queue = { { sx, sz } }
+	local head = 1
+	while head <= #queue do
+		local c = queue[head]
+		head += 1
+		local k = key(c[1], c[2])
+		if goal(c[1], c[2], k) then
+			if k == start then
+				return { sx, sz }, 0
+			end
+			-- walk back along the path to find the first step
+			local cur = k
+			while prev[cur].k ~= start do
+				cur = prev[cur].k
+			end
+			return prev[cur].c, dist[k]
+		end
+		if dist[k] < (maxLen or 99) then
+			for _, d in ipairs(Grid.DIRS) do
+				local nx, nz = c[1] + d[1], c[2] + d[2]
+				local nk = key(nx, nz)
+				if prev[nk] == nil and walkable(nx, nz, fire) and not (avoid and avoid[nk]) then
+					prev[nk] = { k = k, c = { nx, nz } }
+					dist[nk] = dist[k] + 1
+					queue[#queue + 1] = { nx, nz }
+				end
+			end
+		end
+	end
+	return nil
+end
+
+local function enemiesInLine(bot, x, z, range)
+	for _, d in ipairs(Grid.DIRS) do
+		for i = 1, range do
+			local cx, cz = x + d[1] * i, z + d[2] * i
+			if not Grid.inBounds(cx, cz) or S.terrain[key(cx, cz)] then
+				break
+			end
+			local p = S.playerOnCell(Grid.cellOf, cx, cz)
+			if p and p ~= bot then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+local function crateNext(x, z)
+	for _, d in ipairs(Grid.DIRS) do
+		if S.terrain[key(x + d[1], z + d[2])] == "crate" then
+			return true
+		end
+	end
+	return false
+end
+
+-- Would the bot still be able to run to safety after dropping a bomb here?
+local function canEscape(x, z, s, fire)
+	local danger = dangerMap()
+	blastCells(x, z, s.range, s.pierce, danger)
+	local steps = math.floor(Config.FUSE * s.speed / Grid.T) - 1
+	return bfs(x, z, function(_, _, k)
+		return not danger[k]
+	end, fire, nil, steps) ~= nil
+end
+
+----------------------------------------------------------------------
+-- Thinking and moving
+----------------------------------------------------------------------
+local function think(bot, s, root, hum)
+	local x, z = Grid.cellOf(root.Position)
+	local fire = fireNow()
+	local danger = dangerMap()
+	local mem = brain[bot]
+	mem.target = nil
+
+	-- 1. get out of danger
+	if danger[key(x, z)] then
+		local step = bfs(x, z, function(_, _, k)
+			return not danger[k]
+		end, fire, nil, 20)
+		mem.target = step
+		return
+	end
+
+	-- 2. goodies close by (skip the skull if we can help it)
+	local step = bfs(x, z, function(_, _, k)
+		local pu = S.powerups[k]
+		return pu ~= nil and pu.kind ~= "Skull"
+	end, fire, danger, 6)
+	if step then
+		mem.target = step
+		return
+	end
+
+	-- 3. drop a bomb next to a crate or an enemy, if we can get away
+	if s.active < s.maxBombs and s.curse ~= "nobombs" and math.random() < Config.BOT_AGGRESSION then
+		if (enemiesInLine(bot, x, z, s.range) or crateNext(x, z)) and canEscape(x, z, s, fire) then
+			Bombs.place(bot, true)
+			return -- next think will see the danger and run
+		end
+	end
+
+	-- 4. walk towards an enemy, or else towards a crate
+	step = bfs(x, z, function(cx, cz)
+		local p = S.playerOnCell(Grid.cellOf, cx, cz)
+		return (p ~= nil and p ~= bot) or (crateNext(cx, cz) and (cx ~= x or cz ~= z))
+	end, fire, danger, 40)
+	if step then
+		mem.target = step
+		return
+	end
+
+	-- 5. nothing to do: wander to a random safe neighbour
+	local options = {}
+	for _, d in ipairs(Grid.DIRS) do
+		local nx, nz = x + d[1], z + d[2]
+		if walkable(nx, nz, fire) and not danger[key(nx, nz)] then
+			options[#options + 1] = { nx, nz }
+		end
+	end
+	if #options > 0 then
+		mem.target = options[math.random(#options)]
+	end
+end
+
+function Bots.update(now, dt)
+	for bot, model in pairs(S.botChars) do
+		local s = S.stats[bot]
+		local hum = model:FindFirstChildOfClass("Humanoid")
+		local root = model:FindFirstChild("HumanoidRootPart")
+		local mem = brain[bot]
+		if S.alive[bot] and s and hum and root and mem and hum.Health > 0 and S.roundState == "playing" then
+			hum.WalkSpeed = s.curse == "slow" and Config.CURSE_SLOW_SPEED or s.speed
+			if now >= mem.nextThink then
+				mem.nextThink = now + Config.BOT_THINK * (0.8 + math.random() * 0.4)
+				think(bot, s, root, hum)
+			end
+			local t = mem.target
+			if t then
+				local goal = Grid.cellPos(t[1], t[2])
+				local flat = Vector3.new(goal.X - root.Position.X, 0, goal.Z - root.Position.Z)
+				if flat.Magnitude < 0.5 then
+					mem.target = nil
+					mem.nextThink = math.min(mem.nextThink, now) -- reached it: think again right away
+					hum:Move(Vector3.zero)
+				else
+					hum:Move(flat.Unit)
+				end
+			else
+				hum:Move(Vector3.zero)
+			end
+
+			-- conveyor belts push bots too (players are pushed by their own client)
+			local cx, cz = Grid.cellOf(root.Position)
+			local belt = S.belts[key(cx, cz)]
+			if belt then
+				root.CFrame += Vector3.new(belt.dx, 0, belt.dz) * Config.BELT_SPEED * dt
+			end
+		elseif hum then
+			hum:Move(Vector3.zero)
+		end
+	end
+end
+
+return Bots
 ]]></ProtectedString>
-</Properties></Item></Item>
-<Item class="StarterPlayer" referent="RBX10"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX9"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="LocalScript" referent="RBX8"><Properties>
+</Properties></Item><Item class="ModuleScript" referent="RBX4"><Properties>
+<string name="Name">GoodieModels</string>
+<ProtectedString name="Source"><![CDATA[-- Small 3D models for the goodies, built from plain parts (no uploaded assets needed).
+-- GoodieModels.build(kind) returns a Model centred on the origin, about 2.5 studs tall.
+-- The client spins and bobs every model tagged "Goodie3D" (see BombermanClient).
+local GoodieModels = {}
+
+local NEON = Enum.Material.Neon
+local PLASTIC = Enum.Material.SmoothPlastic
+
+local function add(model, size, cf, color, material, meshType)
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = material or PLASTIC
+	if meshType then
+		-- a SpecialMesh stretches to the part size, so this gives ellipsoids / cylinders
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = meshType
+		mesh.Parent = p
+	end
+	p.Parent = model
+	return p
+end
+
+local function ball(model, size, pos, color, material)
+	return add(model, size, CFrame.new(pos), color, material, Enum.MeshType.Sphere)
+end
+
+-- vertical cylinder (Roblox cylinders lie along X, so turn it upright)
+local function cyl(model, height, diameter, pos, color, material)
+	return add(model, Vector3.new(height, diameter, diameter), CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90)), color, material, Enum.MeshType.Cylinder)
+end
+
+local function block(model, size, cf, color, material)
+	return add(model, size, cf, color, material)
+end
+
+local ORANGE = Color3.fromRGB(255, 110, 20)
+local AMBER = Color3.fromRGB(255, 170, 30)
+local YELLOW = Color3.fromRGB(255, 235, 90)
+local WHITE = Color3.fromRGB(245, 245, 245)
+local DARK = Color3.fromRGB(30, 30, 38)
+
+local function flame(m, scale, y)
+	local s = scale or 1
+	y = y or 0
+	ball(m, Vector3.new(1.6, 1.5, 1.6) * s, Vector3.new(0, y - 0.3 * s, 0), ORANGE, NEON)
+	ball(m, Vector3.new(1.2, 1.3, 1.2) * s, Vector3.new(0, y + 0.35 * s, 0), AMBER, NEON)
+	ball(m, Vector3.new(0.75, 1.0, 0.75) * s, Vector3.new(0, y + 0.95 * s, 0), YELLOW, NEON)
+	ball(m, Vector3.new(0.35, 0.6, 0.35) * s, Vector3.new(0.1 * s, y + 1.45 * s, 0), YELLOW, NEON)
+	ball(m, Vector3.new(0.7, 0.7, 0.7) * s, Vector3.new(0, y - 0.35 * s, 0), Color3.fromRGB(255, 250, 200), NEON)
+end
+
+local function speedLines(m, x)
+	for i, y in ipairs({ 0.3, -0.1, -0.5 }) do
+		block(m, Vector3.new(0.5 + i * 0.12, 0.08, 0.08), CFrame.new(x - i * 0.06, y, 0), WHITE, NEON)
+	end
+end
+
+local BUILDERS = {}
+
+-- 🔥 fire range +1: a flame with a plus sign
+BUILDERS.Range = function(m)
+	flame(m, 1, 0)
+	block(m, Vector3.new(0.6, 0.16, 0.16), CFrame.new(0.95, 0.9, 0), WHITE, NEON)
+	block(m, Vector3.new(0.16, 0.6, 0.16), CFrame.new(0.95, 0.9, 0), WHITE, NEON)
+end
+
+-- 💣 extra bomb: black ball, cap, fuse and a glowing spark
+BUILDERS.Bomb = function(m)
+	ball(m, Vector3.new(1.9, 1.9, 1.9), Vector3.new(0, -0.1, 0), DARK, Enum.Material.Metal)
+	ball(m, Vector3.new(0.45, 0.45, 0.45), Vector3.new(-0.45, 0.35, 0.6), Color3.fromRGB(150, 150, 170), PLASTIC)
+	cyl(m, 0.3, 0.65, Vector3.new(0, 0.9, 0), Color3.fromRGB(110, 110, 125), Enum.Material.Metal)
+	block(m, Vector3.new(0.12, 0.55, 0.12), CFrame.new(0.12, 1.25, 0) * CFrame.Angles(0, 0, math.rad(-25)), Color3.fromRGB(200, 170, 120))
+	local spark = ball(m, Vector3.new(0.4, 0.4, 0.4), Vector3.new(0.27, 1.55, 0), YELLOW, NEON)
+	local light = Instance.new("PointLight")
+	light.Color = AMBER
+	light.Range = 6
+	light.Parent = spark
+end
+
+-- 👟 run faster: a sneaker with speed lines
+BUILDERS.Speed = function(m)
+	local blue = Color3.fromRGB(60, 150, 255)
+	block(m, Vector3.new(2.0, 0.3, 0.9), CFrame.new(0.1, -0.65, 0), WHITE)
+	block(m, Vector3.new(1.1, 0.8, 0.85), CFrame.new(-0.35, -0.1, 0), blue)
+	ball(m, Vector3.new(1.2, 0.65, 0.85), Vector3.new(0.45, -0.3, 0), blue)
+	block(m, Vector3.new(0.16, 0.7, 0.9), CFrame.new(-0.2, -0.1, 0), Color3.fromRGB(255, 80, 80), NEON)
+	block(m, Vector3.new(0.7, 0.25, 0.7), CFrame.new(-0.45, 0.4, 0), WHITE)
+	speedLines(m, -1.35)
+end
+
+-- ⚡ pierce bombs: a zig-zag lightning bolt
+BUILDERS.Pierce = function(m)
+	local c = YELLOW
+	block(m, Vector3.new(0.4, 1.1, 0.4), CFrame.new(0.25, 0.75, 0) * CFrame.Angles(0, 0, math.rad(-28)), c, NEON)
+	block(m, Vector3.new(1.0, 0.35, 0.4), CFrame.new(0.05, 0.15, 0) * CFrame.Angles(0, 0, math.rad(15)), c, NEON)
+	block(m, Vector3.new(0.4, 1.2, 0.4), CFrame.new(-0.15, -0.5, 0) * CFrame.Angles(0, 0, math.rad(-28)), c, NEON)
+	ball(m, Vector3.new(0.35, 0.35, 0.35), Vector3.new(-0.45, -1.05, 0), WHITE, NEON)
+end
+
+-- 🧤 glove: an open hand to grab bombs with
+BUILDERS.Throw = function(m)
+	local green = Color3.fromRGB(110, 220, 110)
+	ball(m, Vector3.new(1.3, 1.2, 0.55), Vector3.new(0, 0, 0), green)
+	for i = 0, 3 do
+		local x = -0.45 + i * 0.3
+		cyl(m, 0.75 - math.abs(i - 1.5) * 0.12, 0.26, Vector3.new(x, 0.8, 0), green)
+	end
+	add(m, Vector3.new(0.3, 0.7, 0.3), CFrame.new(0.75, 0.1, 0) * CFrame.Angles(0, 0, math.rad(-45)), green, PLASTIC, Enum.MeshType.Sphere)
+	cyl(m, 0.4, 1.0, Vector3.new(0, -0.75, 0), Color3.fromRGB(40, 120, 50))
+end
+
+-- 🦶 kick shoe: a boot with speed lines
+BUILDERS.Kick = function(m)
+	local pink = Color3.fromRGB(255, 120, 200)
+	block(m, Vector3.new(0.8, 1.2, 0.8), CFrame.new(-0.35, 0.35, 0), pink)
+	ball(m, Vector3.new(1.7, 0.75, 0.85), Vector3.new(0.2, -0.4, 0), pink)
+	block(m, Vector3.new(1.8, 0.18, 0.9), CFrame.new(0.2, -0.8, 0), DARK)
+	block(m, Vector3.new(0.85, 0.15, 0.85), CFrame.new(-0.35, 0.85, 0), WHITE)
+	speedLines(m, -1.3)
+end
+
+-- 🥊 boxing glove (rare)
+BUILDERS.Punch = function(m)
+	local red = Color3.fromRGB(230, 30, 40)
+	ball(m, Vector3.new(1.6, 1.4, 1.3), Vector3.new(0, 0.35, 0), red)
+	ball(m, Vector3.new(0.55, 0.8, 0.5), Vector3.new(-0.2, 0.2, 0.7), red)
+	ball(m, Vector3.new(0.5, 0.35, 0.3), Vector3.new(-0.3, 0.75, -0.45), Color3.fromRGB(255, 120, 120), NEON)
+	cyl(m, 0.6, 1.0, Vector3.new(0, -0.6, 0), WHITE)
+	block(m, Vector3.new(0.9, 0.08, 1.02), CFrame.new(0, -0.45, 0), Color3.fromRGB(255, 215, 70), NEON)
+end
+
+-- 🌋 max fire (very rare): a big flame on a golden disc
+BUILDERS.MaxFire = function(m)
+	flame(m, 1.3, 0.1)
+	cyl(m, 0.15, 2.3, Vector3.new(0, -0.95, 0), Color3.fromRGB(255, 205, 60), NEON)
+	for i = 0, 3 do
+		local a = i * math.pi / 2
+		ball(m, Vector3.new(0.3, 0.3, 0.3), Vector3.new(math.cos(a) * 1.15, -0.8, math.sin(a) * 1.15), WHITE, NEON)
+	end
+end
+
+-- 💀 curse: a skull
+BUILDERS.Skull = function(m)
+	ball(m, Vector3.new(1.5, 1.35, 1.45), Vector3.new(0, 0.3, 0), WHITE)
+	block(m, Vector3.new(0.95, 0.5, 0.9), CFrame.new(0, -0.5, 0.1), WHITE)
+	for _, side in ipairs({ 1, -1 }) do
+		-- eyes on the front and the back, so you see a face while it spins
+		ball(m, Vector3.new(0.42, 0.45, 0.2), Vector3.new(-0.32, 0.2, 0.68 * side), DARK)
+		ball(m, Vector3.new(0.42, 0.45, 0.2), Vector3.new(0.32, 0.2, 0.68 * side), DARK)
+		ball(m, Vector3.new(0.12, 0.12, 0.08), Vector3.new(-0.32, 0.22, 0.75 * side), Color3.fromRGB(255, 50, 50), NEON)
+		ball(m, Vector3.new(0.12, 0.12, 0.08), Vector3.new(0.32, 0.22, 0.75 * side), Color3.fromRGB(255, 50, 50), NEON)
+		block(m, Vector3.new(0.6, 0.06, 0.05), CFrame.new(0, -0.5, 0.56 * side), DARK)
+	end
+end
+
+function GoodieModels.build(kind)
+	local m = Instance.new("Model")
+	m.Name = "Goodie_" .. kind
+	local builder = BUILDERS[kind] or BUILDERS.Bomb
+	builder(m)
+	m:ScaleTo(1.25) -- readable from the top-down camera
+	return m
+end
+
+return GoodieModels
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX5"><Properties>
+<string name="Name">Grid</string>
+<ProtectedString name="Source"><![CDATA[-- Grid helpers: from cell to position and back.
+-- The size can change every round (Grid.setSize), depending on the number of players.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+
+local T = Config.TILE
+
+local Grid = {
+	T = T,
+	W = 13,
+	H = 13,
+	DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } },
+}
+
+local originX, originZ = 0, 0
+
+-- Nearest odd number (odd rows/columns never have fixed walls)
+function Grid.odd(v)
+	return math.floor((v - 1) / 2 + 0.5) * 2 + 1
+end
+
+function Grid.setSize(w, h)
+	Grid.W, Grid.H = w, h
+	originX = -(w - 1) * T / 2
+	originZ = -(h - 1) * T / 2
+	Grid.XM, Grid.ZM = Grid.odd((w + 1) / 2), Grid.odd((h + 1) / 2) -- middle
+end
+Grid.setSize(Grid.W, Grid.H)
+
+-- Pick the arena size for the number of players
+function Grid.sizeFor(playerCount)
+	for _, row in ipairs(Config.ARENA_SIZES) do
+		if playerCount <= row.players then
+			return row.w, row.h
+		end
+	end
+	local last = Config.ARENA_SIZES[#Config.ARENA_SIZES]
+	return last.w, last.h
+end
+
+-- Spawn points: the four corners first, then the middle of each edge
+function Grid.spawns()
+	local W, H, XM, ZM = Grid.W, Grid.H, Grid.XM, Grid.ZM
+	return {
+		{ 1, 1 }, { W, H }, { W, 1 }, { 1, H },
+		{ XM, 1 }, { XM, H }, { 1, ZM }, { W, ZM },
+	}
+end
+
+function Grid.cellPos(x, z)
+	return Vector3.new(originX + (x - 1) * T, 0, originZ + (z - 1) * T)
+end
+
+function Grid.cellOf(p)
+	return math.floor((p.X - originX) / T + 0.5) + 1, math.floor((p.Z - originZ) / T + 0.5) + 1
+end
+
+function Grid.key(x, z)
+	return x * 100 + z
+end
+
+function Grid.unkey(k)
+	return k // 100, k % 100
+end
+
+function Grid.inBounds(x, z)
+	return x >= 1 and x <= Grid.W and z >= 1 and z <= Grid.H
+end
+
+-- Main direction (one axis) of a vector, e.g. look or walk direction
+function Grid.axisDir(v)
+	if math.abs(v.X) > math.abs(v.Z) then
+		return v.X > 0 and 1 or -1, 0
+	end
+	return 0, v.Z > 0 and 1 or -1
+end
+
+-- All cells in a spiral from the outside in (for sudden death)
+function Grid.spiral()
+	local out = {}
+	local x1, z1, x2, z2 = 1, 1, Grid.W, Grid.H
+	while x1 <= x2 and z1 <= z2 do
+		for x = x1, x2 do
+			out[#out + 1] = { x, z1 }
+		end
+		for z = z1 + 1, z2 do
+			out[#out + 1] = { x2, z }
+		end
+		if z1 < z2 then
+			for x = x2 - 1, x1, -1 do
+				out[#out + 1] = { x, z2 }
+			end
+		end
+		if x1 < x2 then
+			for z = z2 - 1, z1 + 1, -1 do
+				out[#out + 1] = { x1, z }
+			end
+		end
+		x1, z1, x2, z2 = x1 + 1, z1 + 1, x2 - 1, z2 - 1
+	end
+	return out
+end
+
+return Grid
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX6"><Properties>
+<string name="Name">Net</string>
+<ProtectedString name="Source"><![CDATA[-- RemoteEvents and round info for the clients
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Net = {}
+
+local folder = Instance.new("Folder")
+folder.Name = "BombRemotes"
+Net.folder = folder
+
+local function newRemote(name)
+	local r = Instance.new("RemoteEvent")
+	r.Name = name
+	r.Parent = folder
+	return r
+end
+
+Net.PlaceBomb = newRemote("PlaceBomb")
+Net.ThrowBomb = newRemote("ThrowBomb")
+Net.Announce = newRemote("Announce") -- (message, seconds, small?) – message is a Lang key table
+Net.RoundResult = newRemote("RoundResult") -- (title message, rows, seconds)
+
+-- Round info as attributes on the folder: State, RoundEndsAt, SuddenDeath, AliveCount,
+-- Round, ArenaW, ArenaH, Belts
+folder:SetAttribute("State", "lobby")
+folder.Parent = ReplicatedStorage
+
+function Net.announce(text, seconds, small, player)
+	if player then
+		if player:IsA("Player") then -- bots have no screen
+			Net.Announce:FireClient(player, text, seconds or 3, small)
+		end
+	else
+		Net.Announce:FireAllClients(text, seconds or 3, small)
+	end
+end
+
+function Net.set(name, value)
+	folder:SetAttribute(name, value)
+end
+
+return Net
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX7"><Properties>
+<string name="Name">Powerups</string>
+<ProtectedString name="Source"><![CDATA[-- Goodies: what they do, spawning, picking them up, and the 💀 curses
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local CollectionService = game:GetService("CollectionService")
+local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+local Grid = require(script.Parent.Grid)
+local S = require(script.Parent.State)
+local Net = require(script.Parent.Net)
+local Sounds = require(script.Parent.Sounds)
+local GoodieModels = require(script.Parent.GoodieModels)
+
+local Powerups = {}
+
+-- Curse kinds; the text shown to players is the Lang key "curse_<kind>"
+local CURSE_KINDS = { "slow", "nobombs", "autobomb" }
+
+local DEFS = {
+	Range = {
+		emoji = "🔥", color = Color3.fromRGB(255, 120, 40), weight = 25,
+		apply = function(s) s.range = math.min(s.range + 1, Config.MAX_RANGE) end,
+	},
+	Bomb = {
+		emoji = "💣", color = Color3.fromRGB(90, 90, 110), weight = 25,
+		apply = function(s) s.maxBombs = math.min(s.maxBombs + 1, Config.MAX_BOMBS) end,
+	},
+	Speed = {
+		emoji = "👟", color = Color3.fromRGB(80, 200, 255), weight = 15,
+		apply = function(s) s.speed = math.min(s.speed + Config.SPEED_STEP, Config.MAX_SPEED) end,
+	},
+	Pierce = {
+		emoji = "⚡", color = Color3.fromRGB(255, 230, 60), weight = 10,
+		apply = function(s) s.pierce = true end,
+	},
+	Throw = {
+		emoji = "🧤", color = Color3.fromRGB(120, 255, 120), weight = 12,
+		apply = function(s) s.throw = true end,
+	},
+	Kick = {
+		emoji = "🦶", color = Color3.fromRGB(255, 150, 220), weight = 12,
+		apply = function(s) s.kick = true end,
+	},
+	-- Rare ones: hard to find, and they sparkle when they do show up
+	Punch = {
+		emoji = "🥊", color = Color3.fromRGB(255, 60, 60), weight = 3, rare = true,
+		apply = function(s) s.punch = true end,
+	},
+	MaxFire = {
+		emoji = "🌋", color = Color3.fromRGB(255, 200, 0), weight = 2, rare = true,
+		apply = function(s) s.range = Config.MAX_RANGE end,
+	},
+	Skull = {
+		emoji = "💀", color = Color3.fromRGB(150, 60, 200), weight = 8,
+		apply = function(s)
+			s.curse = CURSE_KINDS[math.random(#CURSE_KINDS)]
+			s.curseUntil = os.clock() + Config.CURSE_TIME
+		end,
+	},
+}
+Powerups.DEFS = DEFS
+local ORDER = { "Range", "Bomb", "Speed", "Pierce", "Throw", "Kick", "Punch", "MaxFire", "Skull" }
+
+function Powerups.pick()
+	local total = 0
+	for _, kind in ipairs(ORDER) do
+		total += DEFS[kind].weight
+	end
+	local r = math.random() * total
+	for _, kind in ipairs(ORDER) do
+		r -= DEFS[kind].weight
+		if r <= 0 then
+			return kind
+		end
+	end
+	return "Range"
+end
+
+function Powerups.newStats()
+	return {
+		maxBombs = Config.START_BOMBS,
+		range = Config.START_RANGE,
+		speed = Config.START_SPEED,
+		pierce = false,
+		throw = false,
+		kick = false,
+		punch = false,
+		curse = nil,
+		curseUntil = 0,
+		active = 0,
+		held = nil,
+		lastAction = 0,
+		invulUntil = 0,
+	}
+end
+
+function Powerups.sync(player)
+	local s = S.stats[player]
+	if not s then
+		return
+	end
+	player:SetAttribute("Bombs", s.maxBombs)
+	player:SetAttribute("Range", s.range)
+	player:SetAttribute("Speed", s.speed)
+	player:SetAttribute("Pierce", s.pierce)
+	player:SetAttribute("Throw", s.throw)
+	player:SetAttribute("Kick", s.kick)
+	player:SetAttribute("Punch", s.punch)
+	player:SetAttribute("Curse", s.curse and ("curse_" .. s.curse) or nil)
+	local hum = S.getHum(player)
+	if hum then
+		hum.WalkSpeed = s.curse == "slow" and Config.CURSE_SLOW_SPEED or s.speed
+	end
+end
+
+-- burned = true: the goodie was hit by fire, show a little "poof" before it goes
+function Powerups.remove(k, burned)
+	local pu = S.powerups[k]
+	if not pu then
+		return
+	end
+	S.powerups[k] = nil
+	pu.model:Destroy()
+	if not burned then
+		pu.base:Destroy()
+		return
+	end
+	local att = Instance.new("Attachment")
+	att.Position = Vector3.new(1, 0, 0) -- the disc is turned on its side: local +X is up
+	att.Parent = pu.base
+	local poof = Instance.new("ParticleEmitter")
+	poof.Rate = 0
+	poof.Lifetime = NumberRange.new(0.3, 0.6)
+	poof.Speed = NumberRange.new(6, 12)
+	poof.SpreadAngle = Vector2.new(180, 180)
+	poof.LightEmission = 0.6
+	poof.Color = ColorSequence.new(DEFS[pu.kind].color, Color3.fromRGB(60, 60, 60))
+	poof.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 0) })
+	poof.Parent = att
+	poof:Emit(24)
+	pu.base.Transparency = 1
+	Debris:AddItem(pu.base, 0.8)
+end
+
+-- A goodie is a glowing disc on the floor with a small 3D model floating above it
+-- (see GoodieModels). The model is tagged "Goodie3D" so every client spins and
+-- bobs it smoothly on its own screen.
+function Powerups.spawn(x, z, kind)
+	local def = DEFS[kind]
+	local cell = Grid.cellPos(x, z)
+
+	local base = Instance.new("Part")
+	base.Name = "GoodieBase"
+	base.Shape = Enum.PartType.Cylinder
+	base.Size = Vector3.new(0.2, Grid.T - 0.8, Grid.T - 0.8)
+	base.CFrame = CFrame.new(cell + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	base.Material = Enum.Material.Neon
+	base.Color = def.color
+	base.Transparency = 0.35
+	base.Anchored = true
+	base.CanCollide = false
+	base.CanQuery = false
+	base.Parent = S.arena
+
+	local model = GoodieModels.build(kind)
+	local center = cell + Vector3.new(0, 2.1, 0)
+	model:PivotTo(CFrame.new(center))
+	model:SetAttribute("Base", center)
+	CollectionService:AddTag(model, "Goodie3D")
+	if def.rare then
+		local sparkles = Instance.new("Sparkles")
+		sparkles.SparkleColor = def.color
+		sparkles.Parent = base
+		base.Color = Color3.fromRGB(255, 215, 70)
+	end
+	model.Parent = S.arena
+	S.powerups[Grid.key(x, z)] = { model = model, base = base, kind = kind }
+end
+
+-- When someone dies, the goodies they collected are scattered over free cells
+function Powerups.scatter(s)
+	local kinds = {}
+	local function add(kind, n)
+		for _ = 1, n do
+			kinds[#kinds + 1] = kind
+		end
+	end
+	add("Bomb", s.maxBombs - Config.START_BOMBS)
+	add("Range", s.range - Config.START_RANGE)
+	add("Speed", math.floor((s.speed - Config.START_SPEED) / Config.SPEED_STEP))
+	add("Pierce", s.pierce and 1 or 0)
+	add("Throw", s.throw and 1 or 0)
+	add("Kick", s.kick and 1 or 0)
+	add("Punch", s.punch and 1 or 0)
+	if #kinds == 0 then
+		return
+	end
+	-- shuffle and cap, so a max-fire player doesn't flood the arena
+	for i = #kinds, 2, -1 do
+		local j = math.random(i)
+		kinds[i], kinds[j] = kinds[j], kinds[i]
+	end
+	local myGen = S.gen
+	task.delay(Config.FLAME_TIME + 0.1, function()
+		if myGen ~= S.gen then
+			return
+		end
+		local free = {}
+		for x = 1, Grid.W do
+			for z = 1, Grid.H do
+				local k = Grid.key(x, z)
+				if not S.terrain[k] and not S.bombAt[k] and not S.powerups[k] and not S.warps[k]
+					and not S.playerOnCell(Grid.cellOf, x, z) then
+					free[#free + 1] = { x, z }
+				end
+			end
+		end
+		for i = 1, math.min(#kinds, Config.DEATH_DROP_MAX, #free) do
+			local c = table.remove(free, math.random(#free))
+			Powerups.spawn(c[1], c[2], kinds[i])
+		end
+	end)
+end
+
+-- Every frame: pick up goodies and let curses run out
+function Powerups.update(now)
+	for plr in pairs(S.alive) do
+		local root = S.getRoot(plr)
+		local s = S.stats[plr]
+		if root and s then
+			local x, z = Grid.cellOf(root.Position)
+			local k = Grid.key(x, z)
+			local pu = S.powerups[k]
+			if pu then
+				local def = DEFS[pu.kind]
+				def.apply(s)
+				Powerups.remove(k)
+				Powerups.sync(plr)
+				if pu.kind == "Skull" then
+					Net.announce({ k = "curse_" .. s.curse }, 2.5, true, plr)
+					Sounds.play("Curse", root.Position)
+				else
+					Net.announce({ k = "pu_" .. pu.kind }, 1.8, true, plr)
+					Sounds.play("Pickup", root.Position)
+				end
+			end
+			if s.curse and now >= s.curseUntil then
+				s.curse = nil
+				Powerups.sync(plr)
+				Net.announce({ k = "curse_over" }, 1.8, true, plr)
+			end
+		end
+	end
+end
+
+return Powerups
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX8"><Properties>
+<string name="Name">Sounds</string>
+<ProtectedString name="Source"><![CDATA[-- Playing sounds (ids are in BombConfig.SOUNDS)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+
+local Sounds = {}
+
+local holder = Instance.new("Folder")
+holder.Name = "BombSounds"
+holder.Parent = workspace
+
+-- position = nil plays the sound equally loud everywhere
+function Sounds.play(name, position)
+	local def = Config.SOUNDS[name]
+	if not def or def.id == "" then
+		return
+	end
+	local s = Instance.new("Sound")
+	s.SoundId = def.id
+	s.Volume = def.volume or 0.6
+	s.PlaybackSpeed = def.speed or 1
+	s.RollOffMaxDistance = 300
+	s.RollOffMinDistance = 40
+	if position then
+		local att = Instance.new("Attachment")
+		att.WorldPosition = position
+		att.Parent = workspace.Terrain
+		s.Parent = att
+		Debris:AddItem(att, 6)
+	else
+		s.Parent = holder
+		Debris:AddItem(s, 6)
+	end
+	s:Play()
+end
+
+return Sounds
+]]></ProtectedString>
+</Properties></Item><Item class="ModuleScript" referent="RBX9"><Properties>
+<string name="Name">State</string>
+<ProtectedString name="Source"><![CDATA[-- Shared game state (one table all modules use)
+local State = {
+	arena = nil, -- Folder with all parts of the current arena
+	gen = 0, -- goes up with every new arena, so old timers stop doing anything
+	terrain = {}, -- key -> "wall" | "crate"
+	crateParts = {}, -- key -> Part
+	bombs = {}, -- set of bombs
+	bombAt = {}, -- key -> bomb lying on that cell
+	powerups = {}, -- key -> { part, kind }
+	flames = {}, -- list of { cells = {key=true}, expires }
+	warps = {}, -- key -> { x, z } of the other warp
+	belts = {}, -- key -> { dx, dz }
+	toggles = {}, -- key -> { x, z, part, up, closed }
+	ice = {}, -- key -> true
+	stats = {}, -- player -> stats
+	alive = {}, -- player -> true
+	roundPlayers = {}, -- players (and bots) in this round
+	roundState = "lobby", -- lobby | playing | over
+}
+
+-- Bots are Folder instances (not Players); their character models live here
+State.botChars = {} -- bot Folder -> Model
+
+function State.isBot(p)
+	return not p:IsA("Player")
+end
+
+function State.charOf(p)
+	if p:IsA("Player") then
+		return p.Character
+	end
+	return State.botChars[p]
+end
+
+function State.nameOf(p)
+	if p:IsA("Player") then
+		return p.DisplayName
+	end
+	return p:GetAttribute("DisplayName") or p.Name
+end
+
+function State.getRoot(player)
+	local c = State.charOf(player)
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+function State.getHum(player)
+	local c = State.charOf(player)
+	return c and c:FindFirstChildOfClass("Humanoid")
+end
+
+-- Is a living player on this cell?
+function State.playerOnCell(cellOf, x, z)
+	for plr in pairs(State.alive) do
+		local root = State.getRoot(plr)
+		if root then
+			local px, pz = cellOf(root.Position)
+			if px == x and pz == z then
+				return plr
+			end
+		end
+	end
+	return nil
+end
+
+return State
+]]></ProtectedString>
+</Properties></Item></Item></Item>
+<Item class="StarterPlayer" referent="RBX21"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX20"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="LocalScript" referent="RBX19"><Properties>
 <string name="Name">BombermanClient</string>
-<ProtectedString name="Source"><![CDATA[-- Roblomberman: client (bovenaanzicht-camera, HUD, knoppen)
+<ProtectedString name="Source"><![CDATA[-- Roblomberman: client (top-down camera, HUD, buttons, corner assist, belts).
+-- All text goes through Lang, in the language the player set in Roblox.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local ContextActionService = game:GetService("ContextActionService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local SoundService = game:GetService("SoundService")
+local LocalizationService = game:GetService("LocalizationService")
+local CollectionService = game:GetService("CollectionService")
 
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
+local Lang = require(ReplicatedStorage:WaitForChild("Lang"))
 local remotes = ReplicatedStorage:WaitForChild("BombRemotes")
 local placeRemote = remotes:WaitForChild("PlaceBomb")
 local throwRemote = remotes:WaitForChild("ThrowBomb")
 local announceRemote = remotes:WaitForChild("Announce")
+local resultRemote = remotes:WaitForChild("RoundResult")
 
 local player = Players.LocalPlayer
+
+local okLocale, localeId = pcall(function()
+	return LocalizationService.RobloxLocaleId
+end)
+local lang = Lang.pick(okLocale and localeId or player.LocaleId)
+local function tr(msg, args)
+	return Lang.t(lang, msg, args)
+end
 local camera = workspace.CurrentCamera
 camera.FieldOfView = 40
 
+local T = Config.TILE
+
+-- The arena changes size every round; the server puts the size on the remotes folder
+local arenaW, arenaH = 13, 13
+local originX, originZ = 0, 0
+local belts = {} -- key -> { dx, dz }
+local ice = {} -- key -> true
+
+local function readArena()
+	arenaW = remotes:GetAttribute("ArenaW") or arenaW
+	arenaH = remotes:GetAttribute("ArenaH") or arenaH
+	originX = -(arenaW - 1) * T / 2
+	originZ = -(arenaH - 1) * T / 2
+	table.clear(belts)
+	for entry in string.gmatch(remotes:GetAttribute("Belts") or "", "[^;]+") do
+		local x, z, dx, dz = string.match(entry, "(-?%d+),(-?%d+),(-?%d+),(-?%d+)")
+		if x then
+			belts[tonumber(x) * 100 + tonumber(z)] = { dx = tonumber(dx), dz = tonumber(dz) }
+		end
+	end
+	table.clear(ice)
+	for entry in string.gmatch(remotes:GetAttribute("Ice") or "", "[^;]+") do
+		local x, z = string.match(entry, "(-?%d+),(-?%d+)")
+		if x then
+			ice[tonumber(x) * 100 + tonumber(z)] = true
+		end
+	end
+end
+for _, name in ipairs({ "ArenaW", "ArenaH", "Belts", "Ice" }) do
+	remotes:GetAttributeChangedSignal(name):Connect(readArena)
+end
+readArena()
+
+local function cellOf(p)
+	return math.floor((p.X - originX) / T + 0.5) + 1, math.floor((p.Z - originZ) / T + 0.5) + 1
+end
+
+-- Hear sounds from the middle of the arena, not from the high camera
+SoundService:SetListener(Enum.ListenerType.CFrame, CFrame.new(0, 20, 0))
+
 ----------------------------------------------------------------------
--- Camera: vast bovenaanzicht, past zich aan het scherm aan
+-- Camera: from above. While alive it follows your player; when you are out
+-- (or spectating) it shows the whole arena.
 ----------------------------------------------------------------------
-RunService:BindToRenderStep("BombCamera", Enum.RenderPriority.Camera.Value + 1, function()
-	camera.CameraType = Enum.CameraType.Scriptable
+local camFocus = Vector3.zero
+local camDist = 100
+
+local function distFor(cellsW, cellsH, margin)
 	local vp = camera.ViewportSize
 	local aspect = math.max(vp.X, 1) / math.max(vp.Y, 1)
 	local t = math.tan(math.rad(camera.FieldOfView / 2))
-	local halfH = (Config.HEIGHT * Config.TILE) / 2 + 8
-	local halfW = (Config.WIDTH * Config.TILE) / 2 + 5
-	local dist = math.max(halfH / t, halfW / (t * aspect)) * 1.05
-	-- kleine kanteling zodat "omhoog" op het scherm = noord (-Z) blijft
-	camera.CFrame = CFrame.lookAt(Vector3.new(0, dist, dist * 0.22), Vector3.new(0, 0, 0))
+	local halfH = (cellsH * T) / 2 + margin
+	local halfW = (cellsW * T) / 2 + margin
+	return math.max(halfH / t, halfW / (t * aspect)) * 1.05, halfW, halfH
+end
+
+RunService:BindToRenderStep("BombCamera", Enum.RenderPriority.Camera.Value + 1, function(dt)
+	camera.CameraType = Enum.CameraType.Scriptable
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local following = Config.CAMERA_FOLLOW and player:GetAttribute("Alive") and root and hum and hum.Health > 0
+
+	local targetFocus, targetDist
+	if following then
+		local viewW = math.min(Config.CAMERA_VIEW_W, arenaW)
+		local viewH = math.min(Config.CAMERA_VIEW_H, arenaH)
+		local dist, halfW, halfH = distFor(viewW, viewH, 2)
+		-- don't move past the edge of the arena
+		local maxX = math.max(0, (arenaW * T) / 2 + T - halfW)
+		local maxZ = math.max(0, (arenaH * T) / 2 + T - halfH)
+		local p = root.Position
+		targetFocus = Vector3.new(math.clamp(p.X, -maxX, maxX), 0, math.clamp(p.Z, -maxZ, maxZ))
+		targetDist = dist
+	else
+		targetFocus = Vector3.zero
+		targetDist = distFor(arenaW, arenaH, 6)
+	end
+
+	local a = 1 - math.exp(-Config.CAMERA_SMOOTH * dt)
+	camFocus = camFocus:Lerp(targetFocus, a)
+	camDist += (targetDist - camDist) * a
+	-- slight tilt so "up" on screen stays north (-Z)
+	camera.CFrame = CFrame.lookAt(camFocus + Vector3.new(0, camDist, camDist * 0.22), camFocus)
 end)
 
 ----------------------------------------------------------------------
--- Knoppen
+-- Conveyor belts: push your own character along
+----------------------------------------------------------------------
+RunService.Heartbeat:Connect(function(dt)
+	if next(belts) == nil then
+		return
+	end
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not hum or not root or hum.Health <= 0 then
+		return
+	end
+	local x, z = cellOf(root.Position)
+	local b = belts[x * 100 + z]
+	if b then
+		root.CFrame += Vector3.new(b.dx, 0, b.dz) * Config.BELT_SPEED * dt
+	end
+end)
+
+----------------------------------------------------------------------
+-- Ice: you keep your momentum. We remember a "slide velocity" that only
+-- slowly follows how you actually move, and push you by the difference.
+----------------------------------------------------------------------
+local slideVel = Vector3.zero
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+RunService.Heartbeat:Connect(function(dt)
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not hum or not root or hum.Health <= 0 then
+		slideVel = Vector3.zero
+		return
+	end
+	local x, z = cellOf(root.Position)
+	if not ice[x * 100 + z] then
+		slideVel = Vector3.zero
+		return
+	end
+	local v = root.AssemblyLinearVelocity
+	local hv = Vector3.new(v.X, 0, v.Z)
+	slideVel += (hv - slideVel) * math.min(1, Config.ICE_GRIP * dt)
+	local drift = (slideVel - hv) * dt
+	if drift.Magnitude > 0.001 then
+		rayParams.FilterDescendantsInstances = { char }
+		local hit = workspace:Raycast(root.Position, drift.Unit * (drift.Magnitude + 1.2), rayParams)
+		if hit and hit.Instance.CanCollide then
+			slideVel = hv -- bumped into something: stop sliding
+		else
+			root.CFrame += drift
+		end
+	end
+end)
+
+----------------------------------------------------------------------
+-- Corner assist: slide into the corridor when you are just next to an opening.
+-- Fixed walls sit on cells with even x AND even z, so walking horizontally is only
+-- possible in rows with an odd z, and vertically in columns with an odd x.
+----------------------------------------------------------------------
+local function laneOffset(p, origin)
+	local idx = (p - origin) / T + 1 -- cell index (fractional)
+	local lane = math.floor((idx - 1) / 2 + 0.5) * 2 + 1 -- nearest odd cell
+	return origin + (lane - 1) * T - p
+end
+
+RunService.Heartbeat:Connect(function(dt)
+	if not Config.CORNER_ASSIST then
+		return
+	end
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not hum or not root or hum.Health <= 0 then
+		return
+	end
+	local md = hum.MoveDirection
+	if md.Magnitude < 0.5 then
+		return
+	end
+	local maxStep = hum.WalkSpeed * dt
+	local tol = T * Config.CORNER_TOLERANCE
+	local pos = root.Position
+	if math.abs(md.X) > math.abs(md.Z) * 1.5 then
+		local off = laneOffset(pos.Z, originZ)
+		if math.abs(off) > 0.05 and math.abs(off) < tol then
+			root.CFrame += Vector3.new(0, 0, math.clamp(off, -maxStep, maxStep))
+		end
+	elseif math.abs(md.Z) > math.abs(md.X) * 1.5 then
+		local off = laneOffset(pos.X, originX)
+		if math.abs(off) > 0.05 and math.abs(off) < tol then
+			root.CFrame += Vector3.new(math.clamp(off, -maxStep, maxStep), 0, 0)
+		end
+	end
+end)
+
+----------------------------------------------------------------------
+-- Goodies: spin and bob the 3D goodie models (smooth, because it runs locally)
+----------------------------------------------------------------------
+RunService.RenderStepped:Connect(function()
+	local t = os.clock()
+	for _, model in ipairs(CollectionService:GetTagged("Goodie3D")) do
+		local base = model:GetAttribute("Base")
+		if base and model.Parent then
+			local phase = (base.X + base.Z) * 0.37
+			local bob = math.sin(t * 3 + phase) * 0.35
+			model:PivotTo(CFrame.new(base + Vector3.new(0, bob, 0)) * CFrame.Angles(math.rad(12), t * 1.8 + phase, 0))
+		end
+	end
+end)
+
+----------------------------------------------------------------------
+-- Buttons
 ----------------------------------------------------------------------
 ContextActionService:BindAction("PlaceBomb", function(_, state)
 	if state == Enum.UserInputState.Begin then
@@ -850,79 +3758,177 @@ gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.Parent = player:WaitForChild("PlayerGui")
 
-local bar = Instance.new("Frame")
-bar.AnchorPoint = Vector2.new(0.5, 1)
-bar.Position = UDim2.new(0.5, 0, 1, -14)
-bar.Size = UDim2.fromOffset(520, 52)
-bar.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
-bar.BackgroundTransparency = 0.25
-bar.Parent = gui
-Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 12)
-local layout = Instance.new("UIListLayout")
-layout.FillDirection = Enum.FillDirection.Horizontal
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-layout.VerticalAlignment = Enum.VerticalAlignment.Center
-layout.Padding = UDim.new(0, 8)
-layout.Parent = bar
+-- Scale everything with the screen size (phone = smaller)
+local uiScale = Instance.new("UIScale")
+uiScale.Parent = gui
+local function rescale()
+	local vp = camera.ViewportSize
+	uiScale.Scale = math.clamp(math.min(vp.X / 900, vp.Y / 600), 0.5, 1)
+end
+camera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale)
+rescale()
 
-local function statLabel(order)
+local function label(parent, props)
 	local l = Instance.new("TextLabel")
-	l.LayoutOrder = order
-	l.Size = UDim2.fromOffset(96, 36)
 	l.BackgroundTransparency = 1
 	l.TextColor3 = Color3.new(1, 1, 1)
 	l.Font = Enum.Font.GothamBold
 	l.TextSize = 18
-	l.Parent = bar
+	for k, v in pairs(props) do
+		l[k] = v
+	end
+	l.Parent = parent
 	return l
 end
-local lBombs, lRange, lSpeed, lPierce, lThrow = statLabel(1), statLabel(2), statLabel(3), statLabel(4), statLabel(5)
+
+-- Bottom bar with your goodies
+local bar = Instance.new("Frame")
+bar.AnchorPoint = Vector2.new(0.5, 1)
+bar.Position = UDim2.new(0.5, 0, 1, -14)
+bar.Size = UDim2.fromOffset(820, 52)
+bar.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+bar.BackgroundTransparency = 0.25
+bar.Parent = gui
+Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 12)
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 3
+stroke.Transparency = 1
+stroke.Parent = bar
+local layout = Instance.new("UIListLayout")
+layout.FillDirection = Enum.FillDirection.Horizontal
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.VerticalAlignment = Enum.VerticalAlignment.Center
+layout.Padding = UDim.new(0, 6)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = bar
+
+local function statLabel(order)
+	return label(bar, { LayoutOrder = order, Size = UDim2.fromOffset(96, 36) })
+end
+local lColor = statLabel(0)
+local lBombs, lRange, lSpeed = statLabel(1), statLabel(2), statLabel(3)
+local lPierce, lThrow, lKick, lPunch = statLabel(4), statLabel(5), statLabel(6), statLabel(7)
+lColor.Size = UDim2.fromOffset(70, 36)
+
+local curseLabel = label(gui, {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -72),
+	Size = UDim2.fromOffset(520, 28),
+	TextColor3 = Color3.fromRGB(220, 160, 255),
+	TextStrokeTransparency = 0.3,
+	Visible = false,
+})
+
+local function toggle(l, on, emoji)
+	l.Text = emoji .. " " .. tr(on and "on" or "off")
+	l.TextTransparency = on and 0 or 0.55
+end
 
 local function refresh()
-	lBombs.Text = "💣 " .. (player:GetAttribute("Bombs") or 1)
-	lRange.Text = "🔥 " .. (player:GetAttribute("Range") or 2)
-	lSpeed.Text = "👟 " .. (player:GetAttribute("Speed") or 16)
-	lPierce.Text = player:GetAttribute("Pierce") and "⚡ aan" or "⚡ uit"
-	lThrow.Text = player:GetAttribute("Throw") and "🧤 aan" or "🧤 uit"
-	lPierce.TextTransparency = player:GetAttribute("Pierce") and 0 or 0.55
-	lThrow.TextTransparency = player:GetAttribute("Throw") and 0 or 0.55
+	lBombs.Text = "💣 " .. (player:GetAttribute("Bombs") or Config.START_BOMBS)
+	lRange.Text = "🔥 " .. (player:GetAttribute("Range") or Config.START_RANGE)
+	lSpeed.Text = "👟 " .. (player:GetAttribute("Speed") or Config.START_SPEED)
+	toggle(lPierce, player:GetAttribute("Pierce"), "⚡")
+	toggle(lThrow, player:GetAttribute("Throw"), "🧤")
+	toggle(lKick, player:GetAttribute("Kick"), "🦶")
+	toggle(lPunch, player:GetAttribute("Punch"), "🥊")
+	local color = player:GetAttribute("Color")
+	local colorKey = player:GetAttribute("ColorName")
+	lColor.Text = colorKey and tr(colorKey) or ""
+	lColor.TextColor3 = color or Color3.new(1, 1, 1)
+	stroke.Color = color or Color3.new(1, 1, 1)
+	stroke.Transparency = color and 0 or 1
+	local curse = player:GetAttribute("Curse")
+	curseLabel.Text = curse and tr(curse) or ""
+	curseLabel.Visible = curse ~= nil
 end
-for _, name in ipairs({ "Bombs", "Range", "Speed", "Pierce", "Throw" }) do
+for _, name in ipairs({ "Bombs", "Range", "Speed", "Pierce", "Throw", "Kick", "Punch", "Color", "ColorName", "Curse" }) do
 	player:GetAttributeChangedSignal(name):Connect(refresh)
 end
 refresh()
 
-local help = Instance.new("TextLabel")
-help.AnchorPoint = Vector2.new(0, 1)
-help.Position = UDim2.new(0, 14, 1, -14)
-help.Size = UDim2.fromOffset(260, 44)
-help.BackgroundTransparency = 1
-help.TextXAlignment = Enum.TextXAlignment.Left
-help.TextColor3 = Color3.new(1, 1, 1)
-help.TextStrokeTransparency = 0.5
-help.Font = Enum.Font.Gotham
-help.TextSize = 14
-help.Text = "Spatie: bom leggen\nE: bom oppakken / gooien (met 🧤)"
-help.Parent = gui
+-- Help text: different on phone/tablet than with a keyboard
+local touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+label(gui, {
+	AnchorPoint = Vector2.new(0, 0),
+	Position = UDim2.new(0, 14, 0, 60),
+	Size = UDim2.fromOffset(300, 44),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextYAlignment = Enum.TextYAlignment.Top,
+	TextStrokeTransparency = 0.5,
+	Font = Enum.Font.Gotham,
+	TextSize = 14,
+	Text = tr(touchOnly and "help_touch" or "help_keys"),
+})
 
-local banner = Instance.new("TextLabel")
-banner.AnchorPoint = Vector2.new(0.5, 0)
-banner.Position = UDim2.new(0.5, 0, 0, 24)
-banner.Size = UDim2.fromOffset(640, 56)
-banner.BackgroundTransparency = 1
-banner.TextColor3 = Color3.new(1, 1, 1)
-banner.TextStrokeTransparency = 0
-banner.Font = Enum.Font.GothamBlack
-banner.TextScaled = true
-banner.TextTransparency = 1
-banner.TextStrokeTransparency = 1
-banner.Parent = gui
+-- Timer top right
+local timerLabel = label(gui, {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -16, 0, 56),
+	Size = UDim2.fromOffset(260, 40),
+	TextXAlignment = Enum.TextXAlignment.Right,
+	TextStrokeTransparency = 0.3,
+	Font = Enum.Font.GothamBlack,
+	TextSize = 28,
+	Text = "",
+})
+
+-- Spectator message
+local spectateLabel = label(gui, {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 96),
+	Size = UDim2.fromOffset(620, 30),
+	TextStrokeTransparency = 0.3,
+	TextSize = 20,
+	Visible = false,
+})
+
+RunService.RenderStepped:Connect(function()
+	local state = remotes:GetAttribute("State")
+	if state == "playing" then
+		if remotes:GetAttribute("SuddenDeath") then
+			timerLabel.Text = tr("sudden_hud")
+			timerLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
+		else
+			local left = math.max(0, (remotes:GetAttribute("RoundEndsAt") or 0) - workspace:GetServerTimeNow())
+			timerLabel.Text = string.format("⏱️ %d:%02d", math.floor(left / 60), math.floor(left % 60))
+			timerLabel.TextColor3 = left <= 15 and Color3.fromRGB(255, 200, 80) or Color3.new(1, 1, 1)
+		end
+	else
+		timerLabel.Text = ""
+	end
+
+	if state == "playing" and not player:GetAttribute("Alive") then
+		local n = remotes:GetAttribute("AliveCount") or 0
+		if player:GetAttribute("InRound") then
+			spectateLabel.Text = tr("spectate_out", { n = n })
+		else
+			spectateLabel.Text = tr("spectate_wait")
+		end
+		spectateLabel.Visible = true
+		bar.Visible = false
+	else
+		spectateLabel.Visible = false
+		bar.Visible = true
+	end
+end)
+
+-- Big / small announcements
+local banner = label(gui, {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 24),
+	Size = UDim2.fromOffset(640, 56),
+	Font = Enum.Font.GothamBlack,
+	TextScaled = true,
+	TextTransparency = 1,
+	TextStrokeTransparency = 1,
+})
 
 local shown = 0
-announceRemote.OnClientEvent:Connect(function(text, seconds, small)
+announceRemote.OnClientEvent:Connect(function(message, seconds, small)
 	shown += 1
 	local mine = shown
-	banner.Text = text
+	banner.Text = tr(message)
 	banner.Size = small and UDim2.fromOffset(520, 34) or UDim2.fromOffset(640, 56)
 	banner.Position = small and UDim2.new(0.5, 0, 1, -112) or UDim2.new(0.5, 0, 0, 24)
 	banner.AnchorPoint = small and Vector2.new(0.5, 1) or Vector2.new(0.5, 0)
@@ -933,6 +3939,80 @@ announceRemote.OnClientEvent:Connect(function(text, seconds, small)
 			TweenService:Create(banner, TweenInfo.new(0.4), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
 		end
 	end)
+end)
+
+----------------------------------------------------------------------
+-- Scoreboard after every round
+----------------------------------------------------------------------
+local panel = Instance.new("Frame")
+panel.AnchorPoint = Vector2.new(0.5, 0.5)
+panel.Position = UDim2.fromScale(0.5, 0.5)
+panel.Size = UDim2.fromOffset(440, 120)
+panel.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+panel.BackgroundTransparency = 0.1
+panel.Visible = false
+panel.Parent = gui
+Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 16)
+local panelPad = Instance.new("UIPadding")
+panelPad.PaddingTop = UDim.new(0, 14)
+panelPad.PaddingBottom = UDim.new(0, 14)
+panelPad.PaddingLeft = UDim.new(0, 18)
+panelPad.PaddingRight = UDim.new(0, 18)
+panelPad.Parent = panel
+local panelList = Instance.new("UIListLayout")
+panelList.Padding = UDim.new(0, 6)
+panelList.SortOrder = Enum.SortOrder.LayoutOrder
+panelList.Parent = panel
+
+local resultShown = 0
+resultRemote.OnClientEvent:Connect(function(title, rows, seconds, header)
+	resultShown += 1
+	local mine = resultShown
+	for _, c in ipairs(panel:GetChildren()) do
+		if c:IsA("TextLabel") then
+			c:Destroy()
+		end
+	end
+	label(panel, {
+		LayoutOrder = 0,
+		Size = UDim2.new(1, 0, 0, 40),
+		Font = Enum.Font.GothamBlack,
+		TextScaled = true,
+		Text = tr(title),
+	})
+	label(panel, {
+		LayoutOrder = 1,
+		Size = UDim2.new(1, 0, 0, 20),
+		Font = Enum.Font.Gotham,
+		TextSize = 15,
+		TextTransparency = 0.3,
+		Text = tr(header or "wins"),
+	})
+	for i, row in ipairs(rows) do
+		local l = label(panel, {
+			LayoutOrder = 1 + i,
+			Size = UDim2.new(1, 0, 0, 26),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 20,
+			Text = string.format("%s%d.  %s  –  %d", row.winner and "🏆 " or "", i, row.name, row.wins),
+		})
+		if row.color then
+			l.TextColor3 = row.color
+		end
+	end
+	panel.Size = UDim2.fromOffset(440, 28 + 46 + 26 + #rows * 32)
+	panel.Visible = true
+	task.delay(math.max(2, (seconds or 6) - 0.5), function()
+		if mine == resultShown then
+			panel.Visible = false
+		end
+	end)
+end)
+
+remotes:GetAttributeChangedSignal("State"):Connect(function()
+	if remotes:GetAttribute("State") == "lobby" then
+		panel.Visible = false
+	end
 end)
 ]]></ProtectedString>
 </Properties></Item></Item></Item>
