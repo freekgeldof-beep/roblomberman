@@ -14,6 +14,8 @@ Op mobiel staan 💣- en 🧤-knoppen op het scherm.
 
 ## Goodies (vallen uit kapotte kisten)
 
+Elke goodie is een klein 3D-modelletje dat boven een gloeiende schijf zweeft en ronddraait. Je ziet dus een echte bom, vlam, schoen, bliksem, handschoen, laars, bokshandschoen of schedel. Vuur maakt goodies kapot.
+
 - 🔥 **Vuurbereik +1** – je bommen gaan verder
 - 💣 **Extra bom** – meer bommen tegelijk
 - 👟 **Sneller lopen**
@@ -98,6 +100,7 @@ De servercode is opgesplitst in modules in `src/ServerScriptService/Bomberman/`:
 | `Arena` | arena bouwen, thema's, kisten, warps, banden, schakelmuren, ijs, sudden-death-muren |
 | `Bombs` | bommen leggen, gooien, schoppen, wegslaan, ontploffen en het vuur |
 | `Bots` | computertegenstanders |
+| `GoodieModels` | de 3D-modelletjes van de goodies |
 
 Het hoofdscript `BombermanServer` regelt de rondes, wedstrijden en spelers. De code en het commentaar zijn in het Engels.
 

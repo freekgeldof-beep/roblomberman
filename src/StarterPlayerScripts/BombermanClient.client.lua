@@ -8,6 +8,7 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
 local LocalizationService = game:GetService("LocalizationService")
+local CollectionService = game:GetService("CollectionService")
 
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
 local Lang = require(ReplicatedStorage:WaitForChild("Lang"))
@@ -208,6 +209,21 @@ RunService.Heartbeat:Connect(function(dt)
 		local off = laneOffset(pos.X, originX)
 		if math.abs(off) > 0.05 and math.abs(off) < tol then
 			root.CFrame += Vector3.new(math.clamp(off, -maxStep, maxStep), 0, 0)
+		end
+	end
+end)
+
+----------------------------------------------------------------------
+-- Goodies: spin and bob the 3D goodie models (smooth, because it runs locally)
+----------------------------------------------------------------------
+RunService.RenderStepped:Connect(function()
+	local t = os.clock()
+	for _, model in ipairs(CollectionService:GetTagged("Goodie3D")) do
+		local base = model:GetAttribute("Base")
+		if base and model.Parent then
+			local phase = (base.X + base.Z) * 0.37
+			local bob = math.sin(t * 3 + phase) * 0.35
+			model:PivotTo(CFrame.new(base + Vector3.new(0, bob, 0)) * CFrame.Angles(math.rad(12), t * 1.8 + phase, 0))
 		end
 	end
 end)

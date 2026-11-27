@@ -1,12 +1,13 @@
 -- Goodies: what they do, spawning, picking them up, and the 💀 curses
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
+local CollectionService = game:GetService("CollectionService")
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
 local Grid = require(script.Parent.Grid)
 local S = require(script.Parent.State)
 local Net = require(script.Parent.Net)
 local Sounds = require(script.Parent.Sounds)
+local GoodieModels = require(script.Parent.GoodieModels)
 
 local Powerups = {}
 
@@ -117,13 +118,14 @@ function Powerups.remove(k, burned)
 		return
 	end
 	S.powerups[k] = nil
+	pu.model:Destroy()
 	if not burned then
-		pu.part:Destroy()
+		pu.base:Destroy()
 		return
 	end
-	local part = pu.part
 	local att = Instance.new("Attachment")
-	att.Parent = part
+	att.Position = Vector3.new(1, 0, 0) -- the disc is turned on its side: local +X is up
+	att.Parent = pu.base
 	local poof = Instance.new("ParticleEmitter")
 	poof.Rate = 0
 	poof.Lifetime = NumberRange.new(0.3, 0.6)
@@ -134,20 +136,13 @@ function Powerups.remove(k, burned)
 	poof.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 0) })
 	poof.Parent = att
 	poof:Emit(24)
-	if pu.card then
-		TweenService:Create(pu.card, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-			Size = UDim2.fromScale(0, 0),
-		}):Play()
-	end
-	if pu.base then
-		pu.base:Destroy()
-	end
-	Debris:AddItem(part, 0.7)
+	pu.base.Transparency = 1
+	Debris:AddItem(pu.base, 0.8)
 end
 
--- A goodie is a glowing disc on the floor with a floating "card" above it:
--- a rounded tile in the goodie's colour, a white (gold for rare, red for the
--- skull) border and a big icon. The card is sized in studs so it scales with the camera.
+-- A goodie is a glowing disc on the floor with a small 3D model floating above it
+-- (see GoodieModels). The model is tagged "Goodie3D" so every client spins and
+-- bobs it smoothly on its own screen.
 function Powerups.spawn(x, z, kind)
 	local def = DEFS[kind]
 	local cell = Grid.cellPos(x, z)
@@ -155,9 +150,8 @@ function Powerups.spawn(x, z, kind)
 	local base = Instance.new("Part")
 	base.Name = "GoodieBase"
 	base.Shape = Enum.PartType.Cylinder
-	base.Size = Vector3.new(0.2, Grid.T - 1, Grid.T - 1)
-	base.Orientation = Vector3.new(0, 0, 90)
-	base.Position = cell + Vector3.new(0, 0.1, 0)
+	base.Size = Vector3.new(0.2, Grid.T - 0.8, Grid.T - 0.8)
+	base.CFrame = CFrame.new(cell + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90))
 	base.Material = Enum.Material.Neon
 	base.Color = def.color
 	base.Transparency = 0.35
@@ -166,78 +160,19 @@ function Powerups.spawn(x, z, kind)
 	base.CanQuery = false
 	base.Parent = S.arena
 
-	local p = Instance.new("Part")
-	p.Name = "Goodie_" .. kind
-	p.Size = Vector3.new(1, 1, 1)
-	p.Transparency = 1
-	p.Anchored = true
-	p.CanCollide = false
-	p.CanQuery = false
-	p.Position = cell + Vector3.new(0, 2.2, 0)
-	base.Parent = p -- so removing the goodie removes its disc too
-
-	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.new(3.4, 0, 3.4, 0)
-	gui.LightInfluence = 0
-	gui.Parent = p
-
-	local shadow = Instance.new("Frame")
-	shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-	shadow.Position = UDim2.fromScale(0.54, 0.56)
-	shadow.Size = UDim2.fromScale(0.86, 0.86)
-	shadow.BackgroundColor3 = Color3.new(0, 0, 0)
-	shadow.BackgroundTransparency = 0.6
-	shadow.Parent = gui
-	Instance.new("UICorner", shadow).CornerRadius = UDim.new(0.25, 0)
-
-	local card = Instance.new("Frame")
-	card.AnchorPoint = Vector2.new(0.5, 0.5)
-	card.Position = UDim2.fromScale(0.5, 0.5)
-	card.Size = UDim2.fromScale(0.86, 0.86)
-	card.BackgroundColor3 = Color3.new(1, 1, 1)
-	card.Parent = gui
-	Instance.new("UICorner", card).CornerRadius = UDim.new(0.25, 0)
-	local grad = Instance.new("UIGradient")
-	grad.Color = ColorSequence.new(def.color:Lerp(Color3.new(1, 1, 1), 0.35), def.color:Lerp(Color3.new(0, 0, 0), 0.35))
-	grad.Rotation = 90
-	grad.Parent = card
-	local stroke = Instance.new("UIStroke")
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Thickness = 3
-	stroke.Color = def.rare and Color3.fromRGB(255, 215, 70)
-		or (kind == "Skull" and Color3.fromRGB(255, 60, 60) or Color3.new(1, 1, 1))
-	stroke.Parent = card
-
-	local icon = Instance.new("TextLabel")
-	icon.AnchorPoint = Vector2.new(0.5, 0.5)
-	icon.Position = UDim2.fromScale(0.5, 0.52)
-	icon.Size = UDim2.fromScale(0.78, 0.78)
-	icon.BackgroundTransparency = 1
-	icon.Text = def.emoji
-	icon.TextScaled = true
-	icon.Parent = card
-
-	-- gentle wiggle so goodies catch your eye
-	card.Rotation = -6
-	TweenService:Create(card, TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-		Rotation = 6,
-	}):Play()
-
+	local model = GoodieModels.build(kind)
+	local center = cell + Vector3.new(0, 2.1, 0)
+	model:PivotTo(CFrame.new(center))
+	model:SetAttribute("Base", center)
+	CollectionService:AddTag(model, "Goodie3D")
 	if def.rare then
 		local sparkles = Instance.new("Sparkles")
 		sparkles.SparkleColor = def.color
-		sparkles.Parent = p
-		gui.Size = UDim2.new(4, 0, 4, 0)
-		TweenService:Create(stroke, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-			Thickness = 6,
-		}):Play()
+		sparkles.Parent = base
+		base.Color = Color3.fromRGB(255, 215, 70)
 	end
-
-	p.Parent = S.arena
-	TweenService:Create(p, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-		Position = cell + Vector3.new(0, 2.9, 0),
-	}):Play()
-	S.powerups[Grid.key(x, z)] = { part = p, kind = kind, card = card, base = base }
+	model.Parent = S.arena
+	S.powerups[Grid.key(x, z)] = { model = model, base = base, kind = kind }
 end
 
 -- When someone dies, the goodies they collected are scattered over free cells
