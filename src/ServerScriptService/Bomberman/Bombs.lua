@@ -240,9 +240,76 @@ function Bombs.place(player, force)
 	spawnBomb(player, x, z)
 end
 
+-- Send a bomb flying from cell (sx, sz) in direction (dx, dz), landing at least
+-- minDist cells away. Over the outer wall it comes back in on the opposite side.
+-- Returns false when there is no free landing cell.
+local function launch(bomb, sx, sz, dx, dz, minDist)
+	local tx, tz
+	local wrapped = false
+	local size = dx ~= 0 and Grid.W or Grid.H
+	for step = minDist, size - 1 do
+		local cx, cz = sx + dx * step, sz + dz * step
+		local w = not Grid.inBounds(cx, cz)
+		cx = (cx - 1) % Grid.W + 1
+		cz = (cz - 1) % Grid.H + 1
+		if cellFree(cx, cz, false) then
+			tx, tz, wrapped = cx, cz, w
+			break
+		end
+	end
+	if not tx then
+		for step = minDist - 1, 1, -1 do
+			local cx, cz = sx + dx * step, sz + dz * step
+			if cellFree(cx, cz, false) then
+				tx, tz = cx, cz
+				break
+			end
+		end
+	end
+	if not tx then
+		return false
+	end
+	bomb.state = "flying"
+	bomb.solid = false
+	bomb.part.CanCollide = false
+	-- Note: while flying the bomb is NOT in bombAt, so fire can't
+	-- set it off in mid-air. It lands on (x, z).
+	bomb.x, bomb.z = tx, tz
+	local from = bomb.part.Position
+	local to = Grid.cellPos(tx, tz) + BOMB_Y
+	if wrapped then
+		-- two pieces: to just past the edge, then from the opposite side to the target
+		local exitPos, entryPos
+		if dx ~= 0 then
+			exitPos = Vector3.new(Grid.cellPos(dx > 0 and Grid.W + 1.5 or -0.5, sz).X, from.Y, from.Z)
+			entryPos = Vector3.new(Grid.cellPos(dx > 0 and -0.5 or Grid.W + 1.5, sz).X, to.Y, to.Z)
+		else
+			exitPos = Vector3.new(from.X, from.Y, Grid.cellPos(sx, dz > 0 and Grid.H + 1.5 or -0.5).Z)
+			entryPos = Vector3.new(to.X, to.Y, Grid.cellPos(sx, dz > 0 and -0.5 or Grid.H + 1.5).Z)
+		end
+		bomb.path = { { from, exitPos, "up" }, { entryPos, to, "down" } }
+	else
+		bomb.path = { { from, to, "arc" } }
+	end
+	local len = 0
+	for _, seg in ipairs(bomb.path) do
+		len += (seg[2] - seg[1]).Magnitude
+	end
+	bomb.pathLen = len
+	bomb.t0 = os.clock()
+	bomb.dur = math.max(0.35, len / Config.THROW_SPEED)
+	Sounds.play("Throw", from)
+	return true
+end
+
+-- The action button (E / 🧤). In order of priority:
+--   holding a bomb      -> throw it
+--   🦶 and your kicked bomb is sliding -> stop it on the next cell
+--   🥊 and a bomb in front of you      -> punch it over the walls
+--   🧤 and a bomb under / in front of you -> pick it up
 function Bombs.throw(player)
 	local s = S.stats[player]
-	if not s or not S.alive[player] or not s.throw or S.roundState ~= "playing" then
+	if not s or not S.alive[player] or S.roundState ~= "playing" then
 		return
 	end
 	if rateLimited(s) then
@@ -258,67 +325,39 @@ function Bombs.throw(player)
 
 	if s.held then
 		local bomb = s.held
-		local tx, tz
-		local wrapped = false
-		-- If the bomb flies over the outer wall, it comes back in on the opposite side
-		local size = dx ~= 0 and Grid.W or Grid.H
-		for step = Config.THROW_DISTANCE, size - 1 do
-			local cx, cz = sx + dx * step, sz + dz * step
-			local w = not Grid.inBounds(cx, cz)
-			cx = (cx - 1) % Grid.W + 1
-			cz = (cz - 1) % Grid.H + 1
-			if cellFree(cx, cz, false) then
-				tx, tz, wrapped = cx, cz, w
-				break
+		if launch(bomb, sx, sz, dx, dz, Config.THROW_DISTANCE) then
+			s.held = nil
+			bomb.holder = nil
+		end
+		return
+	end
+
+	if s.kick then
+		local stopped = false
+		for b in pairs(S.bombs) do
+			if b.state == "sliding" and b.kicker == player and not b.oneStep then
+				b.stopNext = true
+				stopped = true
 			end
 		end
-		if not tx then
-			for step = Config.THROW_DISTANCE - 1, 0, -1 do
-				local cx, cz = sx + dx * step, sz + dz * step
-				if cellFree(cx, cz, false) then
-					tx, tz = cx, cz
-					break
-				end
-			end
-		end
-		if not tx then
+		if stopped then
 			return
 		end
-		s.held = nil
-		bomb.holder = nil
-		bomb.state = "flying"
-		bomb.solid = false
-		-- Note: while flying the bomb is NOT in bombAt, so fire can't
-		-- set it off in mid-air. It lands on (x, z).
-		bomb.x, bomb.z = tx, tz
-		local from = bomb.part.Position
-		local to = Grid.cellPos(tx, tz) + BOMB_Y
-		if wrapped then
-			-- two pieces: to just past the edge, then from the opposite side to the target
-			local ex = dx > 0 and Grid.W + 1.5 or dx < 0 and -0.5 or 0
-			local ez = dz > 0 and Grid.H + 1.5 or dz < 0 and -0.5 or 0
-			local exitPos, entryPos
-			if dx ~= 0 then
-				exitPos = Vector3.new(Grid.cellPos(ex, sz).X, from.Y, from.Z)
-				entryPos = Vector3.new(Grid.cellPos(dx > 0 and -0.5 or Grid.W + 1.5, sz).X, to.Y, to.Z)
-			else
-				exitPos = Vector3.new(from.X, from.Y, Grid.cellPos(sx, ez).Z)
-				entryPos = Vector3.new(to.X, to.Y, Grid.cellPos(sx, dz > 0 and -0.5 or Grid.H + 1.5).Z)
+	end
+
+	if s.punch then
+		local k = key(sx + dx, sz + dz)
+		local b = S.bombAt[k]
+		if b and b.state == "placed" then
+			S.bombAt[k] = nil
+			if launch(b, b.x, b.z, dx, dz, Config.PUNCH_DISTANCE) then
+				return
 			end
-			bomb.path = { { from, exitPos, "up" }, { entryPos, to, "down" } }
-		else
-			bomb.path = { { from, to, "arc" } }
+			S.bombAt[k] = b -- nowhere to land: leave it
 		end
-		local len = 0
-		for _, seg in ipairs(bomb.path) do
-			len += (seg[2] - seg[1]).Magnitude
-		end
-		bomb.pathLen = len
-		bomb.t0 = os.clock()
-		bomb.dur = math.max(0.35, len / Config.THROW_SPEED)
-		bomb.from = from
-		Sounds.play("Throw", bomb.from)
-	else
+	end
+
+	if s.throw then
 		for _, c in ipairs({ { sx, sz }, { sx + dx, sz + dz } }) do
 			local k = key(c[1], c[2])
 			local b = S.bombAt[k]
@@ -350,8 +389,10 @@ local function startSlide(bomb, dx, dz, speed, oneStep)
 	return true
 end
 
-local function kick(bomb, dx, dz)
+local function kick(bomb, dx, dz, player)
 	if startSlide(bomb, dx, dz, Config.KICK_SPEED, false) then
+		bomb.kicker = player
+		bomb.stopNext = false
 		Sounds.play("Kick", bomb.part.Position)
 	end
 end
@@ -384,7 +425,7 @@ local function checkKicks()
 				local along = math.abs(dx ~= 0 and (center.X - root.Position.X) or (center.Z - root.Position.Z))
 				local side = math.abs(dx ~= 0 and (center.Z - root.Position.Z) or (center.X - root.Position.X))
 				if along < T * 0.85 and side < T * 0.45 then
-					kick(b, dx, dz)
+					kick(b, dx, dz, plr)
 				end
 			end
 		end
@@ -454,7 +495,7 @@ function Bombs.update(now, dt)
 					bomb.x, bomb.z = bomb.x + bomb.dx, bomb.z + bomb.dz
 					S.bombAt[key(bomb.x, bomb.z)] = bomb
 					warpBomb(bomb)
-					if bomb.oneStep or not cellFree(bomb.x + bomb.dx, bomb.z + bomb.dz, true) then
+					if bomb.oneStep or bomb.stopNext or not cellFree(bomb.x + bomb.dx, bomb.z + bomb.dz, true) then
 						bomb.state = "placed"
 						bomb.slide = 0
 					end

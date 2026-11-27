@@ -33,7 +33,7 @@ S.en = {
 	pu_Speed = "👟 Run faster",
 	pu_Pierce = "⚡ Pierce bombs (fire goes through crates)",
 	pu_Throw = "🧤 Glove: throw bombs (E)",
-	pu_Kick = "🦶 Kick shoe: walk into a bomb to kick it",
+	pu_Kick = "🦶 Kick shoe: walk into a bomb to kick it (E ✋)",
 	curse_slow = "🐌 Cursed: super slow!",
 	curse_nobombs = "🚫 Cursed: you can't drop bombs!",
 	curse_autobomb = "💩 Cursed: you drop bombs by yourself!",
@@ -47,6 +47,11 @@ S.en = {
 	wins = "Wins",
 	color_1 = "Red", color_2 = "Blue", color_3 = "Yellow", color_4 = "Green",
 	color_5 = "Purple", color_6 = "Orange", color_7 = "Pink", color_8 = "Cyan",
+	feat_ice = "🧊 ice",
+	pu_Punch = "🥊 Boxing glove: punch a bomb over the walls (E)",
+	pu_MaxFire = "🌋 MAX FIRE!",
+	match_win = "🏆🏆 {name} wins the match!",
+	wins_to = "Wins – first to {n}",
 }
 
 S.nl = {
@@ -70,7 +75,7 @@ S.nl = {
 	pu_Speed = "👟 Sneller lopen",
 	pu_Pierce = "⚡ Doorboor-bommen (vuur breekt door kisten)",
 	pu_Throw = "🧤 Handschoen: bommen gooien (E)",
-	pu_Kick = "🦶 Schopschoen: loop tegen een bom om hem weg te schoppen",
+	pu_Kick = "🦶 Schopschoen: loop tegen een bom om hem weg te schoppen (E ✋)",
 	curse_slow = "🐌 Vervloekt: supertraag!",
 	curse_nobombs = "🚫 Vervloekt: je kunt geen bommen leggen!",
 	curse_autobomb = "💩 Vervloekt: je legt vanzelf bommen!",
@@ -84,6 +89,11 @@ S.nl = {
 	wins = "Overwinningen",
 	color_1 = "Rood", color_2 = "Blauw", color_3 = "Geel", color_4 = "Groen",
 	color_5 = "Paars", color_6 = "Oranje", color_7 = "Roze", color_8 = "Cyaan",
+	feat_ice = "🧊 ijsvakjes",
+	pu_Punch = "🥊 Bokshandschoen: sla een bom over de muren (E)",
+	pu_MaxFire = "🌋 MAX VUUR!",
+	match_win = "🏆🏆 {name} wint de wedstrijd!",
+	wins_to = "Overwinningen – wie het eerst {n} heeft",
 }
 
 S.es = {
@@ -107,7 +117,7 @@ S.es = {
 	pu_Speed = "👟 Correr más rápido",
 	pu_Pierce = "⚡ Bombas perforantes (el fuego atraviesa cajas)",
 	pu_Throw = "🧤 Guante: lanza bombas (E)",
-	pu_Kick = "🦶 Bota: camina contra una bomba para patearla",
+	pu_Kick = "🦶 Bota: camina contra una bomba para patearla (E ✋)",
 	curse_slow = "🐌 Maldito: ¡súper lento!",
 	curse_nobombs = "🚫 Maldito: ¡no puedes poner bombas!",
 	curse_autobomb = "💩 Maldito: ¡pones bombas sin querer!",
@@ -121,6 +131,11 @@ S.es = {
 	wins = "Victorias",
 	color_1 = "Rojo", color_2 = "Azul", color_3 = "Amarillo", color_4 = "Verde",
 	color_5 = "Morado", color_6 = "Naranja", color_7 = "Rosa", color_8 = "Cian",
+	feat_ice = "🧊 hielo",
+	pu_Punch = "🥊 Guante de boxeo: golpea una bomba por encima de los muros (E)",
+	pu_MaxFire = "🌋 ¡FUEGO MÁXIMO!",
+	match_win = "🏆🏆 ¡{name} gana la partida!",
+	wins_to = "Victorias – gana quien llegue a {n}",
 }
 
 S.pt = {
@@ -144,7 +159,7 @@ S.pt = {
 	pu_Speed = "👟 Correr mais rápido",
 	pu_Pierce = "⚡ Bombas perfurantes (o fogo atravessa caixas)",
 	pu_Throw = "🧤 Luva: arremesse bombas (E)",
-	pu_Kick = "🦶 Chute: ande contra uma bomba para chutá-la",
+	pu_Kick = "🦶 Chute: ande contra uma bomba para chutá-la (E ✋)",
 	curse_slow = "🐌 Amaldiçoado: super lento!",
 	curse_nobombs = "🚫 Amaldiçoado: você não pode colocar bombas!",
 	curse_autobomb = "💩 Amaldiçoado: você solta bombas sozinho!",
@@ -158,6 +173,11 @@ S.pt = {
 	wins = "Vitórias",
 	color_1 = "Vermelho", color_2 = "Azul", color_3 = "Amarelo", color_4 = "Verde",
 	color_5 = "Roxo", color_6 = "Laranja", color_7 = "Rosa", color_8 = "Ciano",
+	feat_ice = "🧊 gelo",
+	pu_Punch = "🥊 Luva de boxe: soque uma bomba por cima das paredes (E)",
+	pu_MaxFire = "🌋 FOGO MÁXIMO!",
+	match_win = "🏆🏆 {name} venceu a partida!",
+	wins_to = "Vitórias – vence quem chegar a {n}",
 }
 
 S.fr = {
@@ -181,7 +201,7 @@ S.fr = {
 	pu_Speed = "👟 Courir plus vite",
 	pu_Pierce = "⚡ Bombes perçantes (le feu traverse les caisses)",
 	pu_Throw = "🧤 Gant : lance des bombes (E)",
-	pu_Kick = "🦶 Botte : marche contre une bombe pour la pousser",
+	pu_Kick = "🦶 Botte : marche contre une bombe pour la pousser (E ✋)",
 	curse_slow = "🐌 Maudit : super lent !",
 	curse_nobombs = "🚫 Maudit : tu ne peux plus poser de bombes !",
 	curse_autobomb = "💩 Maudit : tu poses des bombes tout seul !",
@@ -195,6 +215,11 @@ S.fr = {
 	wins = "Victoires",
 	color_1 = "Rouge", color_2 = "Bleu", color_3 = "Jaune", color_4 = "Vert",
 	color_5 = "Violet", color_6 = "Orange", color_7 = "Rose", color_8 = "Cyan",
+	feat_ice = "🧊 glace",
+	pu_Punch = "🥊 Gant de boxe : frappe une bombe par-dessus les murs (E)",
+	pu_MaxFire = "🌋 FEU MAXIMUM !",
+	match_win = "🏆🏆 {name} gagne la partie !",
+	wins_to = "Victoires – le premier à {n} gagne",
 }
 
 S.de = {
@@ -218,7 +243,7 @@ S.de = {
 	pu_Speed = "👟 Schneller laufen",
 	pu_Pierce = "⚡ Durchschlagsbomben (Feuer geht durch Kisten)",
 	pu_Throw = "🧤 Handschuh: Bomben werfen (E)",
-	pu_Kick = "🦶 Kickschuh: lauf gegen eine Bombe, um sie wegzukicken",
+	pu_Kick = "🦶 Kickschuh: lauf gegen eine Bombe, um sie wegzukicken (E ✋)",
 	curse_slow = "🐌 Verflucht: superlangsam!",
 	curse_nobombs = "🚫 Verflucht: du kannst keine Bomben legen!",
 	curse_autobomb = "💩 Verflucht: du legst von selbst Bomben!",
@@ -232,6 +257,11 @@ S.de = {
 	wins = "Siege",
 	color_1 = "Rot", color_2 = "Blau", color_3 = "Gelb", color_4 = "Grün",
 	color_5 = "Lila", color_6 = "Orange", color_7 = "Rosa", color_8 = "Cyan",
+	feat_ice = "🧊 Eis",
+	pu_Punch = "🥊 Boxhandschuh: schlag eine Bombe über die Mauern (E)",
+	pu_MaxFire = "🌋 MAXIMALES FEUER!",
+	match_win = "🏆🏆 {name} gewinnt das Match!",
+	wins_to = "Siege – wer zuerst {n} hat, gewinnt",
 }
 
 S.it = {
@@ -255,7 +285,7 @@ S.it = {
 	pu_Speed = "👟 Corri più veloce",
 	pu_Pierce = "⚡ Bombe perforanti (il fuoco attraversa le casse)",
 	pu_Throw = "🧤 Guanto: lancia le bombe (E)",
-	pu_Kick = "🦶 Scarpa: cammina contro una bomba per calciarla",
+	pu_Kick = "🦶 Scarpa: cammina contro una bomba per calciarla (E ✋)",
 	curse_slow = "🐌 Maledetto: lentissimo!",
 	curse_nobombs = "🚫 Maledetto: non puoi piazzare bombe!",
 	curse_autobomb = "💩 Maledetto: piazzi bombe da solo!",
@@ -269,6 +299,11 @@ S.it = {
 	wins = "Vittorie",
 	color_1 = "Rosso", color_2 = "Blu", color_3 = "Giallo", color_4 = "Verde",
 	color_5 = "Viola", color_6 = "Arancione", color_7 = "Rosa", color_8 = "Ciano",
+	feat_ice = "🧊 ghiaccio",
+	pu_Punch = "🥊 Guantone: colpisci una bomba oltre i muri (E)",
+	pu_MaxFire = "🌋 FUOCO MASSIMO!",
+	match_win = "🏆🏆 {name} vince la partita!",
+	wins_to = "Vittorie – vince chi arriva a {n}",
 }
 
 S.ru = {
@@ -292,7 +327,7 @@ S.ru = {
 	pu_Speed = "👟 Быстрее бегать",
 	pu_Pierce = "⚡ Пробивные бомбы (огонь проходит сквозь ящики)",
 	pu_Throw = "🧤 Перчатка: бросай бомбы (E)",
-	pu_Kick = "🦶 Ботинок: толкни бомбу, подойдя к ней",
+	pu_Kick = "🦶 Ботинок: толкни бомбу, подойдя к ней (E ✋)",
 	curse_slow = "🐌 Проклятие: очень медленно!",
 	curse_nobombs = "🚫 Проклятие: нельзя ставить бомбы!",
 	curse_autobomb = "💩 Проклятие: бомбы ставятся сами!",
@@ -306,6 +341,11 @@ S.ru = {
 	wins = "Победы",
 	color_1 = "Красный", color_2 = "Синий", color_3 = "Жёлтый", color_4 = "Зелёный",
 	color_5 = "Фиолетовый", color_6 = "Оранжевый", color_7 = "Розовый", color_8 = "Голубой",
+	feat_ice = "🧊 лёд",
+	pu_Punch = "🥊 Боксёрская перчатка: отбей бомбу через стены (E)",
+	pu_MaxFire = "🌋 МАКСИМАЛЬНЫЙ ОГОНЬ!",
+	match_win = "🏆🏆 {name} побеждает в матче!",
+	wins_to = "Победы – до {n}",
 }
 
 S.uk = {
@@ -329,7 +369,7 @@ S.uk = {
 	pu_Speed = "👟 Швидше бігати",
 	pu_Pierce = "⚡ Пробивні бомби (вогонь проходить крізь ящики)",
 	pu_Throw = "🧤 Рукавиця: кидай бомби (E)",
-	pu_Kick = "🦶 Черевик: штовхни бомбу, підійшовши до неї",
+	pu_Kick = "🦶 Черевик: штовхни бомбу, підійшовши до неї (E ✋)",
 	curse_slow = "🐌 Прокляття: дуже повільно!",
 	curse_nobombs = "🚫 Прокляття: не можна ставити бомби!",
 	curse_autobomb = "💩 Прокляття: бомби ставляться самі!",
@@ -343,6 +383,11 @@ S.uk = {
 	wins = "Перемоги",
 	color_1 = "Червоний", color_2 = "Синій", color_3 = "Жовтий", color_4 = "Зелений",
 	color_5 = "Фіолетовий", color_6 = "Помаранчевий", color_7 = "Рожевий", color_8 = "Блакитний",
+	feat_ice = "🧊 лід",
+	pu_Punch = "🥊 Боксерська рукавиця: відбий бомбу через стіни (E)",
+	pu_MaxFire = "🌋 МАКСИМАЛЬНИЙ ВОГОНЬ!",
+	match_win = "🏆🏆 {name} перемагає в матчі!",
+	wins_to = "Перемоги – до {n}",
 }
 
 S.pl = {
@@ -366,7 +411,7 @@ S.pl = {
 	pu_Speed = "👟 Szybsze bieganie",
 	pu_Pierce = "⚡ Bomby przebijające (ogień przechodzi przez skrzynie)",
 	pu_Throw = "🧤 Rękawica: rzucaj bombami (E)",
-	pu_Kick = "🦶 But: wejdź w bombę, żeby ją kopnąć",
+	pu_Kick = "🦶 But: wejdź w bombę, żeby ją kopnąć (E ✋)",
 	curse_slow = "🐌 Klątwa: bardzo wolno!",
 	curse_nobombs = "🚫 Klątwa: nie możesz kłaść bomb!",
 	curse_autobomb = "💩 Klątwa: kładziesz bomby sam z siebie!",
@@ -380,6 +425,11 @@ S.pl = {
 	wins = "Wygrane",
 	color_1 = "Czerwony", color_2 = "Niebieski", color_3 = "Żółty", color_4 = "Zielony",
 	color_5 = "Fioletowy", color_6 = "Pomarańczowy", color_7 = "Różowy", color_8 = "Turkusowy",
+	feat_ice = "🧊 lód",
+	pu_Punch = "🥊 Rękawica bokserska: odbij bombę nad ścianami (E)",
+	pu_MaxFire = "🌋 MAKSYMALNY OGIEŃ!",
+	match_win = "🏆🏆 {name} wygrywa mecz!",
+	wins_to = "Wygrane – gra do {n}",
 }
 
 S.tr = {
@@ -403,7 +453,7 @@ S.tr = {
 	pu_Speed = "👟 Daha hızlı koş",
 	pu_Pierce = "⚡ Delici bombalar (ateş sandıkları geçer)",
 	pu_Throw = "🧤 Eldiven: bomba fırlat (E)",
-	pu_Kick = "🦶 Tekme ayakkabısı: bombaya yürüyerek tekmele",
+	pu_Kick = "🦶 Tekme ayakkabısı: bombaya yürüyerek tekmele (E ✋)",
 	curse_slow = "🐌 Lanetlendin: çok yavaş!",
 	curse_nobombs = "🚫 Lanetlendin: bomba koyamazsın!",
 	curse_autobomb = "💩 Lanetlendin: kendiliğinden bomba koyuyorsun!",
@@ -417,6 +467,11 @@ S.tr = {
 	wins = "Galibiyetler",
 	color_1 = "Kırmızı", color_2 = "Mavi", color_3 = "Sarı", color_4 = "Yeşil",
 	color_5 = "Mor", color_6 = "Turuncu", color_7 = "Pembe", color_8 = "Camgöbeği",
+	feat_ice = "🧊 buz",
+	pu_Punch = "🥊 Boks eldiveni: bombayı duvarların üzerinden yumrukla (E)",
+	pu_MaxFire = "🌋 MAKSİMUM ATEŞ!",
+	match_win = "🏆🏆 {name} maçı kazandı!",
+	wins_to = "Galibiyetler – {n} olan kazanır",
 }
 
 S.id = {
@@ -440,7 +495,7 @@ S.id = {
 	pu_Speed = "👟 Lari lebih cepat",
 	pu_Pierce = "⚡ Bom tembus (api menembus peti)",
 	pu_Throw = "🧤 Sarung tangan: lempar bom (E)",
-	pu_Kick = "🦶 Sepatu tendang: jalan ke bom untuk menendangnya",
+	pu_Kick = "🦶 Sepatu tendang: jalan ke bom untuk menendangnya (E ✋)",
 	curse_slow = "🐌 Terkutuk: super lambat!",
 	curse_nobombs = "🚫 Terkutuk: kamu tidak bisa menaruh bom!",
 	curse_autobomb = "💩 Terkutuk: kamu menaruh bom sendiri!",
@@ -454,6 +509,11 @@ S.id = {
 	wins = "Kemenangan",
 	color_1 = "Merah", color_2 = "Biru", color_3 = "Kuning", color_4 = "Hijau",
 	color_5 = "Ungu", color_6 = "Oranye", color_7 = "Merah muda", color_8 = "Sian",
+	feat_ice = "🧊 es",
+	pu_Punch = "🥊 Sarung tinju: pukul bom melewati dinding (E)",
+	pu_MaxFire = "🌋 API MAKSIMAL!",
+	match_win = "🏆🏆 {name} memenangkan pertandingan!",
+	wins_to = "Kemenangan – yang pertama mencapai {n} menang",
 }
 
 S.fil = {
@@ -477,7 +537,7 @@ S.fil = {
 	pu_Speed = "👟 Mas mabilis tumakbo",
 	pu_Pierce = "⚡ Tumatagos na bomba (lumulusot ang apoy sa mga kahon)",
 	pu_Throw = "🧤 Guwantes: maghagis ng bomba (E)",
-	pu_Kick = "🦶 Sipa: lumakad papunta sa bomba para sipain ito",
+	pu_Kick = "🦶 Sipa: lumakad papunta sa bomba para sipain ito (E ✋)",
 	curse_slow = "🐌 Isinumpa: sobrang bagal!",
 	curse_nobombs = "🚫 Isinumpa: hindi ka makapaglagay ng bomba!",
 	curse_autobomb = "💩 Isinumpa: kusa kang naglalagay ng bomba!",
@@ -491,6 +551,11 @@ S.fil = {
 	wins = "Mga panalo",
 	color_1 = "Pula", color_2 = "Asul", color_3 = "Dilaw", color_4 = "Berde",
 	color_5 = "Lila", color_6 = "Kahel", color_7 = "Rosas", color_8 = "Cyan",
+	feat_ice = "🧊 yelo",
+	pu_Punch = "🥊 Boxing glove: suntukin ang bomba lampas sa mga pader (E)",
+	pu_MaxFire = "🌋 PINAKAMALAKAS NA APOY!",
+	match_win = "🏆🏆 Panalo si {name} sa laban!",
+	wins_to = "Mga panalo – unang makaabot sa {n}",
 }
 
 S.vi = {
@@ -514,7 +579,7 @@ S.vi = {
 	pu_Speed = "👟 Chạy nhanh hơn",
 	pu_Pierce = "⚡ Bom xuyên (lửa xuyên qua thùng)",
 	pu_Throw = "🧤 Găng tay: ném bom (E)",
-	pu_Kick = "🦶 Giày đá: đi vào quả bom để đá nó",
+	pu_Kick = "🦶 Giày đá: đi vào quả bom để đá nó (E ✋)",
 	curse_slow = "🐌 Bị nguyền: siêu chậm!",
 	curse_nobombs = "🚫 Bị nguyền: bạn không thể đặt bom!",
 	curse_autobomb = "💩 Bị nguyền: bạn tự động đặt bom!",
@@ -528,6 +593,11 @@ S.vi = {
 	wins = "Chiến thắng",
 	color_1 = "Đỏ", color_2 = "Xanh dương", color_3 = "Vàng", color_4 = "Xanh lá",
 	color_5 = "Tím", color_6 = "Cam", color_7 = "Hồng", color_8 = "Lục lam",
+	feat_ice = "🧊 băng",
+	pu_Punch = "🥊 Găng đấm bốc: đấm bom bay qua tường (E)",
+	pu_MaxFire = "🌋 LỬA TỐI ĐA!",
+	match_win = "🏆🏆 {name} thắng trận đấu!",
+	wins_to = "Chiến thắng – ai đạt {n} trước sẽ thắng",
 }
 
 S.th = {
@@ -551,7 +621,7 @@ S.th = {
 	pu_Speed = "👟 วิ่งเร็วขึ้น",
 	pu_Pierce = "⚡ ระเบิดทะลุ (ไฟทะลุลัง)",
 	pu_Throw = "🧤 ถุงมือ: ขว้างระเบิด (E)",
-	pu_Kick = "🦶 รองเท้าเตะ: เดินชนระเบิดเพื่อเตะ",
+	pu_Kick = "🦶 รองเท้าเตะ: เดินชนระเบิดเพื่อเตะ (E ✋)",
 	curse_slow = "🐌 ถูกสาป: ช้ามาก!",
 	curse_nobombs = "🚫 ถูกสาป: วางระเบิดไม่ได้!",
 	curse_autobomb = "💩 ถูกสาป: วางระเบิดเอง!",
@@ -565,6 +635,11 @@ S.th = {
 	wins = "ชนะ",
 	color_1 = "แดง", color_2 = "น้ำเงิน", color_3 = "เหลือง", color_4 = "เขียว",
 	color_5 = "ม่วง", color_6 = "ส้ม", color_7 = "ชมพู", color_8 = "ฟ้า",
+	feat_ice = "🧊 น้ำแข็ง",
+	pu_Punch = "🥊 นวม: ต่อยระเบิดข้ามกำแพง (E)",
+	pu_MaxFire = "🌋 ไฟสูงสุด!",
+	match_win = "🏆🏆 {name} ชนะการแข่งขัน!",
+	wins_to = "ชนะ – ใครถึง {n} ก่อนชนะ",
 }
 
 S.ja = {
@@ -588,7 +663,7 @@ S.ja = {
 	pu_Speed = "👟 スピードアップ",
 	pu_Pierce = "⚡ 貫通ボム（炎が箱を突き抜ける）",
 	pu_Throw = "🧤 グローブ：ボムを投げる (E)",
-	pu_Kick = "🦶 キック：ボムに向かって歩くと蹴れる",
+	pu_Kick = "🦶 キック：ボムに向かって歩くと蹴れる (E ✋)",
 	curse_slow = "🐌 呪い：超スロー！",
 	curse_nobombs = "🚫 呪い：ボムを置けない！",
 	curse_autobomb = "💩 呪い：勝手にボムを置いてしまう！",
@@ -602,6 +677,11 @@ S.ja = {
 	wins = "勝利数",
 	color_1 = "赤", color_2 = "青", color_3 = "黄", color_4 = "緑",
 	color_5 = "紫", color_6 = "オレンジ", color_7 = "ピンク", color_8 = "水色",
+	feat_ice = "🧊 氷",
+	pu_Punch = "🥊 ボクシンググローブ：ボムを壁の向こうへ殴り飛ばす (E)",
+	pu_MaxFire = "🌋 火力MAX！",
+	match_win = "🏆🏆 {name} が試合に勝利！",
+	wins_to = "勝利数 – 先に {n} 勝した人の勝ち",
 }
 
 S.ko = {
@@ -625,7 +705,7 @@ S.ko = {
 	pu_Speed = "👟 더 빨리 달리기",
 	pu_Pierce = "⚡ 관통 폭탄 (불길이 상자를 뚫어요)",
 	pu_Throw = "🧤 장갑: 폭탄 던지기 (E)",
-	pu_Kick = "🦶 킥 신발: 폭탄으로 걸어가면 걷어차요",
+	pu_Kick = "🦶 킥 신발: 폭탄으로 걸어가면 걷어차요 (E ✋)",
 	curse_slow = "🐌 저주: 엄청 느려요!",
 	curse_nobombs = "🚫 저주: 폭탄을 놓을 수 없어요!",
 	curse_autobomb = "💩 저주: 폭탄이 저절로 놓여요!",
@@ -639,6 +719,11 @@ S.ko = {
 	wins = "승리",
 	color_1 = "빨강", color_2 = "파랑", color_3 = "노랑", color_4 = "초록",
 	color_5 = "보라", color_6 = "주황", color_7 = "분홍", color_8 = "하늘",
+	feat_ice = "🧊 얼음",
+	pu_Punch = "🥊 권투 장갑: 폭탄을 벽 너머로 쳐 날려요 (E)",
+	pu_MaxFire = "🌋 최대 화력!",
+	match_win = "🏆🏆 {name} 님이 경기에서 승리!",
+	wins_to = "승리 – 먼저 {n}승 하면 우승",
 }
 
 S.zh_cn = {
@@ -662,7 +747,7 @@ S.zh_cn = {
 	pu_Speed = "👟 跑得更快",
 	pu_Pierce = "⚡ 穿透炸弹（火焰穿过箱子）",
 	pu_Throw = "🧤 手套：投掷炸弹 (E)",
-	pu_Kick = "🦶 踢鞋：走向炸弹即可踢开",
+	pu_Kick = "🦶 踢鞋：走向炸弹即可踢开 (E ✋)",
 	curse_slow = "🐌 被诅咒：超级慢！",
 	curse_nobombs = "🚫 被诅咒：不能放炸弹！",
 	curse_autobomb = "💩 被诅咒：会自动放炸弹！",
@@ -676,6 +761,11 @@ S.zh_cn = {
 	wins = "胜场",
 	color_1 = "红", color_2 = "蓝", color_3 = "黄", color_4 = "绿",
 	color_5 = "紫", color_6 = "橙", color_7 = "粉", color_8 = "青",
+	feat_ice = "🧊 冰面",
+	pu_Punch = "🥊 拳击手套：把炸弹打过墙 (E)",
+	pu_MaxFire = "🌋 最大火力！",
+	match_win = "🏆🏆 {name} 赢得比赛！",
+	wins_to = "胜场 – 先赢 {n} 场者获胜",
 }
 
 S.zh_tw = {
@@ -699,7 +789,7 @@ S.zh_tw = {
 	pu_Speed = "👟 跑得更快",
 	pu_Pierce = "⚡ 穿透炸彈（火焰穿過箱子）",
 	pu_Throw = "🧤 手套：投擲炸彈 (E)",
-	pu_Kick = "🦶 踢鞋：走向炸彈即可踢開",
+	pu_Kick = "🦶 踢鞋：走向炸彈即可踢開 (E ✋)",
 	curse_slow = "🐌 被詛咒：超級慢！",
 	curse_nobombs = "🚫 被詛咒：不能放炸彈！",
 	curse_autobomb = "💩 被詛咒：會自動放炸彈！",
@@ -713,6 +803,11 @@ S.zh_tw = {
 	wins = "勝場",
 	color_1 = "紅", color_2 = "藍", color_3 = "黃", color_4 = "綠",
 	color_5 = "紫", color_6 = "橙", color_7 = "粉", color_8 = "青",
+	feat_ice = "🧊 冰面",
+	pu_Punch = "🥊 拳擊手套：把炸彈打過牆 (E)",
+	pu_MaxFire = "🌋 最大火力！",
+	match_win = "🏆🏆 {name} 贏得比賽！",
+	wins_to = "勝場 – 先贏 {n} 場者獲勝",
 }
 
 S.ar = {
@@ -736,7 +831,7 @@ S.ar = {
 	pu_Speed = "👟 ركض أسرع",
 	pu_Pierce = "⚡ قنابل خارقة (النار تخترق الصناديق)",
 	pu_Throw = "🧤 قفاز: ارمِ القنابل (E)",
-	pu_Kick = "🦶 حذاء الركل: امشِ نحو القنبلة لتركلها",
+	pu_Kick = "🦶 حذاء الركل: امشِ نحو القنبلة لتركلها (E ✋)",
 	curse_slow = "🐌 ملعون: بطيء جدًا!",
 	curse_nobombs = "🚫 ملعون: لا يمكنك وضع القنابل!",
 	curse_autobomb = "💩 ملعون: تضع القنابل تلقائيًا!",
@@ -750,6 +845,11 @@ S.ar = {
 	wins = "الانتصارات",
 	color_1 = "أحمر", color_2 = "أزرق", color_3 = "أصفر", color_4 = "أخضر",
 	color_5 = "بنفسجي", color_6 = "برتقالي", color_7 = "وردي", color_8 = "سماوي",
+	feat_ice = "🧊 جليد",
+	pu_Punch = "🥊 قفاز ملاكمة: اضرب القنبلة فوق الجدران (E)",
+	pu_MaxFire = "🌋 أقصى نار!",
+	match_win = "🏆🏆 {name} يفوز بالمباراة!",
+	wins_to = "الانتصارات – الفائز أول من يصل إلى {n}",
 }
 
 Lang.strings = S

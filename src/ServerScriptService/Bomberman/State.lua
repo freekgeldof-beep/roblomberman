@@ -11,6 +11,7 @@ local State = {
 	warps = {}, -- key -> { x, z } of the other warp
 	belts = {}, -- key -> { dx, dz }
 	toggles = {}, -- key -> { x, z, part, up, closed }
+	ice = {}, -- key -> true
 	stats = {}, -- player -> stats
 	alive = {}, -- player -> true
 	roundPlayers = {}, -- players (and bots) in this round

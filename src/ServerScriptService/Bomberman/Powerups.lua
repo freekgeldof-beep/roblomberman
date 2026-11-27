@@ -37,6 +37,15 @@ local DEFS = {
 		emoji = "🦶", color = Color3.fromRGB(255, 150, 220), weight = 12,
 		apply = function(s) s.kick = true end,
 	},
+	-- Rare ones: hard to find, and they sparkle when they do show up
+	Punch = {
+		emoji = "🥊", color = Color3.fromRGB(255, 60, 60), weight = 3, rare = true,
+		apply = function(s) s.punch = true end,
+	},
+	MaxFire = {
+		emoji = "🌋", color = Color3.fromRGB(255, 200, 0), weight = 2, rare = true,
+		apply = function(s) s.range = Config.MAX_RANGE end,
+	},
 	Skull = {
 		emoji = "💀", color = Color3.fromRGB(150, 60, 200), weight = 8,
 		apply = function(s)
@@ -46,7 +55,7 @@ local DEFS = {
 	},
 }
 Powerups.DEFS = DEFS
-local ORDER = { "Range", "Bomb", "Speed", "Pierce", "Throw", "Kick", "Skull" }
+local ORDER = { "Range", "Bomb", "Speed", "Pierce", "Throw", "Kick", "Punch", "MaxFire", "Skull" }
 
 function Powerups.pick()
 	local total = 0
@@ -71,6 +80,7 @@ function Powerups.newStats()
 		pierce = false,
 		throw = false,
 		kick = false,
+		punch = false,
 		curse = nil,
 		curseUntil = 0,
 		active = 0,
@@ -91,6 +101,7 @@ function Powerups.sync(player)
 	player:SetAttribute("Pierce", s.pierce)
 	player:SetAttribute("Throw", s.throw)
 	player:SetAttribute("Kick", s.kick)
+	player:SetAttribute("Punch", s.punch)
 	player:SetAttribute("Curse", s.curse and ("curse_" .. s.curse) or nil)
 	local hum = S.getHum(player)
 	if hum then
@@ -127,6 +138,13 @@ function Powerups.spawn(x, z, kind)
 	label.Text = def.emoji
 	label.TextScaled = true
 	label.Parent = gui
+
+	if def.rare then
+		local sparkles = Instance.new("Sparkles")
+		sparkles.SparkleColor = def.color
+		sparkles.Parent = p
+		p.Size = Vector3.new(2.8, 2.8, 2.8)
+	end
 
 	p.Parent = S.arena
 	TweenService:Create(p, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {

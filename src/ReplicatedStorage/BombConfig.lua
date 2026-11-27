@@ -18,6 +18,7 @@ return {
 	FLAME_TIME = 0.6, -- how long the fire stays
 	THROW_DISTANCE = 3, -- minimum throw distance in cells
 	THROW_SPEED = 30, -- studs per second
+	PUNCH_DISTANCE = 3, -- cells a 🥊 punch sends a bomb
 	KICK_SPEED = 9, -- cells per second for a kicked bomb
 
 	START_BOMBS = 1,
@@ -38,6 +39,7 @@ return {
 	CORNER_TOLERANCE = 0.7, -- how far (in cells) you may be off a corridor
 
 	INTERMISSION = 7, -- seconds between rounds (scoreboard)
+	MATCH_WINS = 3, -- a match is "first to this many round wins" (0 = no matches, just rounds)
 	MAX_PLAYERS = 8,
 
 	-- Computer opponents: bots fill the round up to this many players (0 = no bots)
@@ -57,11 +59,14 @@ return {
 		Warps = 0.75, -- warp zones: step on one and come out at the other
 		Belts = 0.75, -- conveyor belts: push players and bombs along
 		Toggles = 0.6, -- switch walls: go up and down every few seconds
+		Ice = 0.5, -- ice patches: you keep sliding when you let go
 	},
 	WARP_COOLDOWN = 0.6, -- seconds before a warp can send you again
 	BELT_SPEED = 7, -- studs per second a belt carries you
 	BELT_BOMB_SPEED = 3, -- cells per second for a bomb on a belt
 	TOGGLE_INTERVAL = 6, -- seconds between switch walls going up and down
+	ICE_SHARE = 0.18, -- share of open cells that turn to ice
+	ICE_GRIP = 1.2, -- how fast you stop sliding on ice (lower = more slippery)
 
 	PLAYER_COLORS = {
 		{ name = "color_1", color = Color3.fromRGB(235, 70, 70) },

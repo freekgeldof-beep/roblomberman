@@ -148,6 +148,32 @@ local function planToggles(reserved)
 	end
 end
 
+-- Ice: a few small patches (a seed cell plus its neighbours). Crates may sit on ice.
+local function planIce(reserved)
+	local open = {}
+	for x = 1, Grid.W do
+		for z = 1, Grid.H do
+			if not isFixedWall(x, z) and not reserved[key(x, z)] then
+				open[#open + 1] = { x, z }
+			end
+		end
+	end
+	local target = math.floor(#open * Config.ICE_SHARE)
+	local count, tries = 0, 0
+	while count < target and tries < 200 do
+		tries += 1
+		local c = open[math.random(#open)]
+		for _, d in ipairs({ { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+			local x, z = c[1] + d[1], c[2] + d[2]
+			local k = key(x, z)
+			if Grid.inBounds(x, z) and not isFixedWall(x, z) and not reserved[k] and not S.ice[k] then
+				S.ice[k] = true
+				count += 1
+			end
+		end
+	end
+end
+
 ----------------------------------------------------------------------
 -- Building the parts
 ----------------------------------------------------------------------
@@ -214,7 +240,7 @@ function Arena.build(playerCount)
 		S.arena:Destroy()
 	end
 	S.gen += 1
-	for _, t in ipairs({ S.terrain, S.crateParts, S.bombs, S.bombAt, S.powerups, S.flames, S.warps, S.belts, S.toggles }) do
+	for _, t in ipairs({ S.terrain, S.crateParts, S.bombs, S.bombAt, S.powerups, S.flames, S.warps, S.belts, S.toggles, S.ice }) do
 		table.clear(t)
 	end
 
@@ -245,6 +271,9 @@ function Arena.build(playerCount)
 	if features.Toggles then
 		planToggles(reserved)
 	end
+	if features.Ice then
+		planIce(reserved)
+	end
 
 	local spawns = Grid.spawns()
 	local light, dark = theme.floor[1], theme.floor[2]
@@ -253,6 +282,11 @@ function Arena.build(playerCount)
 			local k = key(x, z)
 			local floor = makePart(Vector3.new(T, 1, T), Grid.cellPos(x, z) + Vector3.new(0, -0.5, 0), (x + z) % 2 == 0 and light or dark, theme.floorMat)
 			floor.Name = "Floor"
+			if S.ice[k] then
+				floor.Color = Color3.fromRGB(170, 220, 255)
+				floor.Material = Enum.Material.Ice
+				floor.Reflectance = 0.25
+			end
 			if isFixedWall(x, z) then
 				S.terrain[k] = "wall"
 				local w = makePart(Vector3.new(T, T, T), Grid.cellPos(x, z) + Vector3.new(0, T / 2, 0), theme.wall, theme.wallMat)
@@ -292,6 +326,12 @@ function Arena.build(playerCount)
 	Net.set("ArenaW", W)
 	Net.set("ArenaH", H)
 	Net.set("Belts", table.concat(beltList, ";"))
+	local iceList = {}
+	for k in pairs(S.ice) do
+		local x, z = Grid.unkey(k)
+		iceList[#iceList + 1] = x .. "," .. z
+	end
+	Net.set("Ice", table.concat(iceList, ";"))
 
 	local names = {}
 	if features.Warps then
@@ -302,6 +342,9 @@ function Arena.build(playerCount)
 	end
 	if features.Toggles then
 		names[#names + 1] = { k = "feat_toggles" }
+	end
+	if features.Ice then
+		names[#names + 1] = { k = "feat_ice" }
 	end
 	return names
 end

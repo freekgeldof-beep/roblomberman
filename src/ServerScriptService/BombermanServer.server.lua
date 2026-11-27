@@ -36,6 +36,7 @@ Net.ThrowBomb.OnServerEvent:Connect(function(player)
 end)
 
 local roundNumber = 0
+local matchOver = false -- true after someone won the match: the next round starts a new one
 
 local function msg(k, a)
 	return { k = k, a = a }
@@ -72,9 +73,10 @@ local function sendResult(winner, title)
 	local rows = {}
 	for _, plr in ipairs(everyone) do
 		local w = getWins(plr)
+		local shown = Config.MATCH_WINS > 0 and (plr:GetAttribute("MatchWins") or 0) or (w and w.Value or 0)
 		rows[#rows + 1] = {
 			name = S.nameOf(plr),
-			wins = w and w.Value or 0,
+			wins = shown,
 			color = plr:GetAttribute("Color"),
 			winner = plr == winner,
 		}
@@ -85,7 +87,8 @@ local function sendResult(winner, title)
 		end
 		return a.name < b.name
 	end)
-	Net.RoundResult:FireAllClients(title, rows, Config.INTERMISSION)
+	local header = Config.MATCH_WINS > 0 and msg("wins_to", { n = Config.MATCH_WINS }) or msg("wins")
+	Net.RoundResult:FireAllClients(title, rows, Config.INTERMISSION, header)
 end
 
 local function endRound(winner, reason)
@@ -103,6 +106,14 @@ local function endRound(winner, reason)
 		end
 		title = msg("win_round", { name = S.nameOf(winner), n = roundNumber })
 		Sounds.play("Win")
+		if Config.MATCH_WINS > 0 then
+			local mw = (winner:GetAttribute("MatchWins") or 0) + 1
+			winner:SetAttribute("MatchWins", mw)
+			if mw >= Config.MATCH_WINS then
+				title = msg("match_win", { name = S.nameOf(winner) })
+				matchOver = true
+			end
+		end
 	else
 		title = reason or msg("draw")
 	end
@@ -219,6 +230,18 @@ local function startRound()
 	local botCount = math.max(0, math.min(Config.BOT_FILL, Config.MAX_PLAYERS) - #participants)
 	for _, bot in ipairs(Bots.get(botCount)) do
 		participants[#participants + 1] = bot
+	end
+
+	if matchOver then
+		-- a new match: everyone back to 0 round wins
+		matchOver = false
+		roundNumber = 0
+		for _, p in ipairs(Players:GetPlayers()) do
+			p:SetAttribute("MatchWins", 0)
+		end
+		for _, bot in ipairs(Bots.all()) do
+			bot:SetAttribute("MatchWins", 0)
+		end
 	end
 
 	local features = Arena.build(#participants)

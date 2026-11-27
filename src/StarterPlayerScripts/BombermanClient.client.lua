@@ -35,6 +35,7 @@ local T = Config.TILE
 local arenaW, arenaH = 13, 13
 local originX, originZ = 0, 0
 local belts = {} -- key -> { dx, dz }
+local ice = {} -- key -> true
 
 local function readArena()
 	arenaW = remotes:GetAttribute("ArenaW") or arenaW
@@ -48,8 +49,15 @@ local function readArena()
 			belts[tonumber(x) * 100 + tonumber(z)] = { dx = tonumber(dx), dz = tonumber(dz) }
 		end
 	end
+	table.clear(ice)
+	for entry in string.gmatch(remotes:GetAttribute("Ice") or "", "[^;]+") do
+		local x, z = string.match(entry, "(-?%d+),(-?%d+)")
+		if x then
+			ice[tonumber(x) * 100 + tonumber(z)] = true
+		end
+	end
 end
-for _, name in ipairs({ "ArenaW", "ArenaH", "Belts" }) do
+for _, name in ipairs({ "ArenaW", "ArenaH", "Belts", "Ice" }) do
 	remotes:GetAttributeChangedSignal(name):Connect(readArena)
 end
 readArena()
@@ -124,6 +132,42 @@ RunService.Heartbeat:Connect(function(dt)
 	local b = belts[x * 100 + z]
 	if b then
 		root.CFrame += Vector3.new(b.dx, 0, b.dz) * Config.BELT_SPEED * dt
+	end
+end)
+
+----------------------------------------------------------------------
+-- Ice: you keep your momentum. We remember a "slide velocity" that only
+-- slowly follows how you actually move, and push you by the difference.
+----------------------------------------------------------------------
+local slideVel = Vector3.zero
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+RunService.Heartbeat:Connect(function(dt)
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not hum or not root or hum.Health <= 0 then
+		slideVel = Vector3.zero
+		return
+	end
+	local x, z = cellOf(root.Position)
+	if not ice[x * 100 + z] then
+		slideVel = Vector3.zero
+		return
+	end
+	local v = root.AssemblyLinearVelocity
+	local hv = Vector3.new(v.X, 0, v.Z)
+	slideVel += (hv - slideVel) * math.min(1, Config.ICE_GRIP * dt)
+	local drift = (slideVel - hv) * dt
+	if drift.Magnitude > 0.001 then
+		rayParams.FilterDescendantsInstances = { char }
+		local hit = workspace:Raycast(root.Position, drift.Unit * (drift.Magnitude + 1.2), rayParams)
+		if hit and hit.Instance.CanCollide then
+			slideVel = hv -- bumped into something: stop sliding
+		else
+			root.CFrame += drift
+		end
 	end
 end)
 
@@ -223,7 +267,7 @@ end
 local bar = Instance.new("Frame")
 bar.AnchorPoint = Vector2.new(0.5, 1)
 bar.Position = UDim2.new(0.5, 0, 1, -14)
-bar.Size = UDim2.fromOffset(720, 52)
+bar.Size = UDim2.fromOffset(820, 52)
 bar.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 bar.BackgroundTransparency = 0.25
 bar.Parent = gui
@@ -245,7 +289,7 @@ local function statLabel(order)
 end
 local lColor = statLabel(0)
 local lBombs, lRange, lSpeed = statLabel(1), statLabel(2), statLabel(3)
-local lPierce, lThrow, lKick = statLabel(4), statLabel(5), statLabel(6)
+local lPierce, lThrow, lKick, lPunch = statLabel(4), statLabel(5), statLabel(6), statLabel(7)
 lColor.Size = UDim2.fromOffset(70, 36)
 
 local curseLabel = label(gui, {
@@ -269,6 +313,7 @@ local function refresh()
 	toggle(lPierce, player:GetAttribute("Pierce"), "⚡")
 	toggle(lThrow, player:GetAttribute("Throw"), "🧤")
 	toggle(lKick, player:GetAttribute("Kick"), "🦶")
+	toggle(lPunch, player:GetAttribute("Punch"), "🥊")
 	local color = player:GetAttribute("Color")
 	local colorKey = player:GetAttribute("ColorName")
 	lColor.Text = colorKey and tr(colorKey) or ""
@@ -279,7 +324,7 @@ local function refresh()
 	curseLabel.Text = curse and tr(curse) or ""
 	curseLabel.Visible = curse ~= nil
 end
-for _, name in ipairs({ "Bombs", "Range", "Speed", "Pierce", "Throw", "Kick", "Color", "ColorName", "Curse" }) do
+for _, name in ipairs({ "Bombs", "Range", "Speed", "Pierce", "Throw", "Kick", "Punch", "Color", "ColorName", "Curse" }) do
 	player:GetAttributeChangedSignal(name):Connect(refresh)
 end
 refresh()
@@ -402,7 +447,7 @@ panelList.SortOrder = Enum.SortOrder.LayoutOrder
 panelList.Parent = panel
 
 local resultShown = 0
-resultRemote.OnClientEvent:Connect(function(title, rows, seconds)
+resultRemote.OnClientEvent:Connect(function(title, rows, seconds, header)
 	resultShown += 1
 	local mine = resultShown
 	for _, c in ipairs(panel:GetChildren()) do
@@ -423,7 +468,7 @@ resultRemote.OnClientEvent:Connect(function(title, rows, seconds)
 		Font = Enum.Font.Gotham,
 		TextSize = 15,
 		TextTransparency = 0.3,
-		Text = tr("wins"),
+		Text = tr(header or "wins"),
 	})
 	for i, row in ipairs(rows) do
 		local l = label(panel, {
