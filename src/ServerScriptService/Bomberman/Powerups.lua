@@ -1,6 +1,7 @@
 -- Goodies: what they do, spawning, picking them up, and the 💀 curses
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
 local Config = require(ReplicatedStorage:WaitForChild("BombConfig"))
 local Grid = require(script.Parent.Grid)
 local S = require(script.Parent.State)
@@ -109,48 +110,134 @@ function Powerups.sync(player)
 	end
 end
 
-function Powerups.remove(k)
+-- burned = true: the goodie was hit by fire, show a little "poof" before it goes
+function Powerups.remove(k, burned)
 	local pu = S.powerups[k]
-	if pu then
-		pu.part:Destroy()
-		S.powerups[k] = nil
+	if not pu then
+		return
 	end
+	S.powerups[k] = nil
+	if not burned then
+		pu.part:Destroy()
+		return
+	end
+	local part = pu.part
+	local att = Instance.new("Attachment")
+	att.Parent = part
+	local poof = Instance.new("ParticleEmitter")
+	poof.Rate = 0
+	poof.Lifetime = NumberRange.new(0.3, 0.6)
+	poof.Speed = NumberRange.new(6, 12)
+	poof.SpreadAngle = Vector2.new(180, 180)
+	poof.LightEmission = 0.6
+	poof.Color = ColorSequence.new(DEFS[pu.kind].color, Color3.fromRGB(60, 60, 60))
+	poof.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 0) })
+	poof.Parent = att
+	poof:Emit(24)
+	if pu.card then
+		TweenService:Create(pu.card, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+			Size = UDim2.fromScale(0, 0),
+		}):Play()
+	end
+	if pu.base then
+		pu.base:Destroy()
+	end
+	Debris:AddItem(part, 0.7)
 end
 
+-- A goodie is a glowing disc on the floor with a floating "card" above it:
+-- a rounded tile in the goodie's colour, a white (gold for rare, red for the
+-- skull) border and a big icon. The card is sized in studs so it scales with the camera.
 function Powerups.spawn(x, z, kind)
 	local def = DEFS[kind]
+	local cell = Grid.cellPos(x, z)
+
+	local base = Instance.new("Part")
+	base.Name = "GoodieBase"
+	base.Shape = Enum.PartType.Cylinder
+	base.Size = Vector3.new(0.2, Grid.T - 1, Grid.T - 1)
+	base.Orientation = Vector3.new(0, 0, 90)
+	base.Position = cell + Vector3.new(0, 0.1, 0)
+	base.Material = Enum.Material.Neon
+	base.Color = def.color
+	base.Transparency = 0.35
+	base.Anchored = true
+	base.CanCollide = false
+	base.CanQuery = false
+	base.Parent = S.arena
+
 	local p = Instance.new("Part")
 	p.Name = "Goodie_" .. kind
-	p.Size = Vector3.new(2.4, 2.4, 2.4)
-	p.Material = Enum.Material.Neon
-	p.Color = def.color
+	p.Size = Vector3.new(1, 1, 1)
+	p.Transparency = 1
 	p.Anchored = true
 	p.CanCollide = false
 	p.CanQuery = false
-	p.Position = Grid.cellPos(x, z) + Vector3.new(0, 2, 0)
+	p.Position = cell + Vector3.new(0, 2.2, 0)
+	base.Parent = p -- so removing the goodie removes its disc too
 
 	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(64, 64)
+	gui.Size = UDim2.new(3.4, 0, 3.4, 0)
+	gui.LightInfluence = 0
 	gui.Parent = p
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Text = def.emoji
-	label.TextScaled = true
-	label.Parent = gui
+
+	local shadow = Instance.new("Frame")
+	shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+	shadow.Position = UDim2.fromScale(0.54, 0.56)
+	shadow.Size = UDim2.fromScale(0.86, 0.86)
+	shadow.BackgroundColor3 = Color3.new(0, 0, 0)
+	shadow.BackgroundTransparency = 0.6
+	shadow.Parent = gui
+	Instance.new("UICorner", shadow).CornerRadius = UDim.new(0.25, 0)
+
+	local card = Instance.new("Frame")
+	card.AnchorPoint = Vector2.new(0.5, 0.5)
+	card.Position = UDim2.fromScale(0.5, 0.5)
+	card.Size = UDim2.fromScale(0.86, 0.86)
+	card.BackgroundColor3 = Color3.new(1, 1, 1)
+	card.Parent = gui
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0.25, 0)
+	local grad = Instance.new("UIGradient")
+	grad.Color = ColorSequence.new(def.color:Lerp(Color3.new(1, 1, 1), 0.35), def.color:Lerp(Color3.new(0, 0, 0), 0.35))
+	grad.Rotation = 90
+	grad.Parent = card
+	local stroke = Instance.new("UIStroke")
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Thickness = 3
+	stroke.Color = def.rare and Color3.fromRGB(255, 215, 70)
+		or (kind == "Skull" and Color3.fromRGB(255, 60, 60) or Color3.new(1, 1, 1))
+	stroke.Parent = card
+
+	local icon = Instance.new("TextLabel")
+	icon.AnchorPoint = Vector2.new(0.5, 0.5)
+	icon.Position = UDim2.fromScale(0.5, 0.52)
+	icon.Size = UDim2.fromScale(0.78, 0.78)
+	icon.BackgroundTransparency = 1
+	icon.Text = def.emoji
+	icon.TextScaled = true
+	icon.Parent = card
+
+	-- gentle wiggle so goodies catch your eye
+	card.Rotation = -6
+	TweenService:Create(card, TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		Rotation = 6,
+	}):Play()
 
 	if def.rare then
 		local sparkles = Instance.new("Sparkles")
 		sparkles.SparkleColor = def.color
 		sparkles.Parent = p
-		p.Size = Vector3.new(2.8, 2.8, 2.8)
+		gui.Size = UDim2.new(4, 0, 4, 0)
+		TweenService:Create(stroke, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+			Thickness = 6,
+		}):Play()
 	end
 
 	p.Parent = S.arena
 	TweenService:Create(p, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-		Position = Grid.cellPos(x, z) + Vector3.new(0, 2.8, 0),
+		Position = cell + Vector3.new(0, 2.9, 0),
 	}):Play()
-	S.powerups[Grid.key(x, z)] = { part = p, kind = kind }
+	S.powerups[Grid.key(x, z)] = { part = p, kind = kind, card = card, base = base }
 end
 
 -- When someone dies, the goodies they collected are scattered over free cells

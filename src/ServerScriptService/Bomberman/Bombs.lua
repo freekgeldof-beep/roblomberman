@@ -180,7 +180,7 @@ function Bombs.explode(bomb)
 			else
 				cells[#cells + 1] = { cx, cz }
 				if S.powerups[ck] then
-					Powerups.remove(ck)
+					Powerups.remove(ck, true) -- fire burns goodies
 				end
 				local ob = S.bombAt[ck]
 				if ob then
